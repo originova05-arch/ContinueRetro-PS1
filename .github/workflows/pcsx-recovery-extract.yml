@@ -1,0 +1,69 @@
+name: Extract PCSX-Redux recovery artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run:
+        description: Source toolchain recovery workflow run ID
+        required: true
+        default: '33647415521'
+  push:
+    paths:
+      - '.github/workflows/pcsx-recovery-extract.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  DEFAULT_SOURCE_RUN: '33647415521'
+
+jobs:
+  extract-pcsx:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve and download completed source recovery artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_INPUT: ${{ inputs.source_run }}
+        run: |
+          set -euxo pipefail
+          SOURCE_RUN="${SOURCE_RUN_INPUT:-$DEFAULT_SOURCE_RUN}"
+          mkdir -p recovery/source recovery/out
+          URL=''
+          for attempt in $(seq 1 100); do
+            JSON="$(curl -L --fail --retry 5 --retry-all-errors \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H 'Accept: application/vnd.github+json' \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN/artifacts")"
+            URL="$(printf '%s' "$JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((a["archive_download_url"] for a in d.get("artifacts",[]) if a.get("name")=="ContinueRetro-PS1-toolchain-linux-x86_64"), ""))')"
+            [ -n "$URL" ] && break
+            sleep 15
+          done
+          test -n "$URL"
+          curl -L --fail --retry 8 --retry-all-errors \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            -o recovery/source/toolchain.zip "$URL"
+          unzip -q recovery/source/toolchain.zip -d recovery/source/unpacked
+          FULL="$(find recovery/source/unpacked -type f -name 'ContinueRetro-PS1-toolchain-linux-x86_64.tar.gz' | head -1)"
+          test -n "$FULL"
+          mkdir -p recovery/source/stage
+          tar -xzf "$FULL" -C recovery/source/stage tools/installed/pcsx-redux
+          test -x recovery/source/stage/tools/installed/pcsx-redux/squashfs-root/AppRun
+          tar -C recovery/source/stage -czf recovery/out/ContinueRetro-PS1-pcsx-redux-2a36099dc-linux-x86_64.tar.gz tools/installed/pcsx-redux
+          sha256sum recovery/out/ContinueRetro-PS1-pcsx-redux-2a36099dc-linux-x86_64.tar.gz > recovery/out/PCSX_RECOVERY_SHA256.txt
+          printf 'source_run=%s\nsource_ref=%s\n' "$SOURCE_RUN" '2a36099dc24c5a746854e3de8359c40e5af21c10' > recovery/out/PCSX_RECOVERY_SOURCE.txt
+          cat recovery/out/PCSX_RECOVERY_SHA256.txt
+
+      - name: Upload PCSX-only recovery artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ContinueRetro-PS1-pcsx-redux-2a36099dc-linux-x86_64
+          path: recovery/out/
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
