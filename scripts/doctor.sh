@@ -9,7 +9,12 @@ case "${1:-}" in
 esac
 
 echo 'ContinueRetro-PS1 Doctor'; echo "Project: $PROJECT_ROOT"; echo "Host: $(uname -s) $(uname -m)"; echo
-"$PROJECT_ROOT/scripts/verify_toolchain.sh"; STATUS=$?; echo
+if [ "$MODE" = toolchain ]; then
+  "$PROJECT_ROOT/scripts/verify_toolchain.sh" --toolchain-only; STATUS=$?
+else
+  "$PROJECT_ROOT/scripts/verify_toolchain.sh"; STATUS=$?
+fi
+echo
 
 if [ "$MODE" = toolchain ]; then
   if [ "$STATUS" -eq 0 ]; then echo 'READY: PS1 localization toolchain healthy.'; else echo 'NOT FULLY READY: see MISSING/ACTION lines above.'; fi
@@ -23,7 +28,7 @@ if [ -f "$PROJECT_ROOT/SHA256SUMS.txt" ]; then "$PROJECT_ROOT/scripts/verify_man
 [ -x "$INSTALLED/xdelta3/xdelta3" ] || echo 'ACTION  xdelta3 missing: restore the locked portable cache or rerun bootstrap on a networked machine.'
 command -v ffmpeg >/dev/null 2>&1 || echo 'ACTION  ffmpeg missing: bootstrap can install the system package; command reference is docs/reference/ffmpeg-imagemagick.md.'
 (command -v magick >/dev/null 2>&1 || command -v convert >/dev/null 2>&1) || echo 'ACTION  imagemagick missing: bootstrap can install the system package; command reference is docs/reference/ffmpeg-imagemagick.md.'
-"$PROJECT_ROOT/scripts/verify_mips_toolchain.sh" >/dev/null 2>&1 || echo 'ACTION  PS1 MIPS-I compiler path missing/broken: install clang + lld + llvm tools via bootstrap.'
+"$PROJECT_ROOT/scripts/verify_mips_toolchain.sh" >/dev/null 2>&1 || echo 'ACTION  PS1 MIPS-I compiler path missing/broken: restore the portable LLVM recovery artifact.'
 [ -d "$TOOLS/src/duckstation/.git" ] || echo 'INFO    Third-party source clones are optional local cache; locked portable binaries are sufficient for normal work.'
 if [ "$STATUS" -eq 0 ]; then echo; echo 'READY: PS1 localization toolchain healthy.'; else echo; echo 'NOT FULLY READY: see MISSING/ACTION lines above.'; fi
 exit "$STATUS"
