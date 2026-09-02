@@ -4,6 +4,8 @@ Toolchain lock date: **2026-09-02 (Asia/Bangkok)**. Exact machine-readable refs 
 
 | Program | Version/ref | Role | Portable path | Install/build | Dependencies | OS/architecture |
 |---|---|---|---|---|---|---|
+| CMake | 4.4.3 | Configure/build pinned native tools | `tools/installed/cmake-4.4.3/` | locked official release archive | bundled | Linux x86_64 |
+| Ninja | 1.13.2 | Fast native builds | `tools/installed/ninja-1.13.2/` | locked official release archive | none | Linux x86_64 |
 | Ghidra | 12.1.3 / `Ghidra_12.1.3_build` | MIPS/PS-X EXE reverse engineering; renderer/font/string analysis | `tools/installed/ghidra/ghidra_12.1.3_PUBLIC/` | locked ZIP or core recovery artifact | Java 21 | Java platforms; headless tested Linux x86_64 |
 | mkpsxiso | 2.30 | PS1 image rebuild, fixed LBA layout, LBA logs | `tools/installed/mkpsxiso/.../bin/mkpsxiso` | locked Linux/Darwin ZIP or core recovery artifact | release-native libs | Linux x86_64 tested; Darwin package cached |
 | dumpsxiso | 2.30 | BIN/CUE extraction and XML/LBA generation | same package as mkpsxiso | same | same | Linux x86_64 tested |
@@ -13,7 +15,8 @@ Toolchain lock date: **2026-09-02 (Asia/Bangkok)**. Exact machine-readable refs 
 | xdelta3 | 3.2.0 / tag `v3.2.0` | User-distributable delta patch creation/application | `tools/installed/xdelta3/xdelta3` | locked Linux x86_64 tarball; pinned source fallback; core recovery artifact | no runtime dependency for locked binary | Linux x86_64 tested |
 | FFmpeg | system package | Media inspection/transcode; XA/STR QA support; screenshot/video pipelines | `/usr/bin/ffmpeg` on validated Ubuntu runner | `bootstrap.sh` installs/checks host package | codec libraries supplied by OS package | Linux/macOS recipes |
 | ImageMagick | system package | Bitmap/font atlas inspection, crop/montage/GIF/image QA | `/usr/bin/convert` or `magick` | `bootstrap.sh` installs/checks host package | OS image libraries | Linux/macOS recipes |
-| PS1 MIPS LLVM | LLVM/Clang 17.0.6 | Compile/link renderer hooks and PS1 payloads for R3000A/MIPS-I | `tools/installed/llvm-17.0.6/` and `tools/bin/ps1-mips-*` | pinned official LLVM archive restored by LLVM recovery artifact | repository-local clang, ld.lld, llvm-objcopy, llvm-objdump | Linux x86_64 |
+| PS1 MIPS LLVM | LLVM/Clang 17.0.6 | Preferred compiler for renderer hooks and PS1 payloads for R3000A/MIPS-I | `tools/installed/llvm-17.0.6/` and `tools/bin/ps1-mips-*` | pinned official LLVM archive restored by Actions recovery artifact | repository-local clang, ld.lld, llvm-objcopy, llvm-objdump | Linux x86_64 |
+| PS1 MIPS GCC | GCC 12.3.0 / PSn00bSDK v0.24 | Portable fallback when the locked LLVM binary cannot execute on a host runtime | `tools/installed/gcc-mipsel-none-elf-12.3.0/` | locked official PSn00bSDK release archive | bundled binutils | Linux x86_64 |
 | Continue Retro Thai Game FontKit | 1.2.1 | Thai glyph sources/profiles/placement/QA scripts | `tools/installed/fontkit/`; source/config under `tools/src/fontkit/` when available | user project asset + Python builders | Python requirements in kit | cross-platform Python; Zoids 2 target 16×13 |
 | ContinueRetro PS1 utils | repo version | Shift-JIS scan, raw 2352 helper, LBA map, PS-X EXE header inspection | `tools/src/continue-retro-ps1-utils/` | source tracked in repo | Python 3 | cross-platform Python; shell wrappers Unix-like |
 
@@ -32,7 +35,7 @@ A fresh runtime must not use `/tmp`, `/usr/local`, or leftover project directori
 
 The older `.github/workflows/toolchain-recovery.yml` source-build path is **not the canonical recovery path** because its PCSX-Redux source-build step was not retained as the proven artifact source. Use the three artifacts above instead.
 
-Restore the artifacts so their `tools/installed/...` paths land under the repository root. Restore the user-owned FontKit ZIP as:
+Restore the artifacts so their `tools/installed/...` paths land under the repository root. `bootstrap.sh` also restores pinned portable CMake, Ninja, and the PS1 MIPS GCC fallback from locked GitHub release archives when they are absent. Restore the user-owned FontKit ZIP as:
 
 ```text
 tools/cache/Continue_Retro_Thai_Game_FontKit_v1.2.1.zip
@@ -99,6 +102,8 @@ The validated doctor reported OK for mkpsxiso, dumpsxiso, Ghidra, jPSXdec, DuckS
 
 `bootstrap.sh` may install missing generic host packages such as CMake, Ninja, Java, FFmpeg, or ImageMagick into normal OS package locations (for the validated Ubuntu runtime, `/usr/bin`). The project-owned/pinned PS1 tools and compiler recovery remain under `tools/installed/` and `tools/bin/`.
 
+If the locked LLVM executable is incomplete or cannot run on a host, the repository-local GCC 12.3.0 fallback keeps the PS1/MIPS compile/link/objcopy smoke test available. FontKit remains mandatory before actual Thai font or game-data work.
+
 ## Use
 
 ```bash
@@ -136,7 +141,7 @@ The user-supplied FFmpeg/ImageMagick command notes are preserved unchanged at `d
 
 ## PS1 MIPS compiler
 
-The wrappers use **only** the repository-local LLVM 17.0.6 installation under `tools/installed/llvm-17.0.6/`. They target little-endian MIPS-I (`mipsel-none-elf`, `-march=mips1`, ABI32, soft-float), appropriate for PS1 R3000A hook/payload work.
+The wrappers prefer the repository-local LLVM 17.0.6 installation under `tools/installed/llvm-17.0.6/`. If its `clang` executable cannot run on the current host, they fall back to the locked repository-local GCC 12.3.0 toolchain under `tools/installed/gcc-mipsel-none-elf-12.3.0/`. Both paths target little-endian MIPS-I/R3000 (`mipsel-none-elf`, ABI32, soft-float), appropriate for PS1 R3000A hook/payload work.
 
 ```bash
 ./scripts/verify_mips_toolchain.sh

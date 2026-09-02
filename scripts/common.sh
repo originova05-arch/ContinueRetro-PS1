@@ -5,7 +5,9 @@ TOOLS="$PROJECT_ROOT/tools"
 CACHE="$TOOLS/cache"
 INSTALLED="$TOOLS/installed"
 BIN="$TOOLS/bin"
-export PATH="$BIN:$PATH"
+# Keep project wrappers first and avoid inheriting tools from forbidden
+# runtime-local locations such as /usr/local or /tmp.
+export PATH="$BIN:/usr/bin:/bin"
 sha256_cmd() {
   if command -v sha256sum >/dev/null 2>&1; then sha256sum "$@"
   elif command -v shasum >/dev/null 2>&1; then shasum -a 256 "$@"

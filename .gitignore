@@ -2,6 +2,7 @@ PRIVATE/**
 !PRIVATE/README.md
 tools/cache/**
 tools/installed/**
+tools/bin/
 !tools/cache/.gitkeep
 !tools/installed/.gitkeep
 tools/src/ghidra/

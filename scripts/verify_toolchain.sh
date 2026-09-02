@@ -13,7 +13,8 @@ printf '%-18s %-9s %-48s %s\n' TOOL STATUS PATH VERSION
 printf '%-18s %-9s %-48s %s\n' ------------------ --------- ------------------------------------------------ ----------------
 FAIL=0
 show(){ local n="$1" p="$2" v="$3"; if [ -e "$p" ]; then printf '%-18s %-9s %-48s %s\n' "$n" OK "$p" "$v"; else printf '%-18s %-9s %-48s %s\n' "$n" MISSING "$p" '-'; FAIL=1; fi; }
-
+CMAKE="$INSTALLED/cmake-4.4.3/bin/cmake"; show CMake "$CMAKE" "$( [ -x "$CMAKE" ] && "$CMAKE" --version 2>/dev/null | head -1 )"
+NINJA="$INSTALLED/ninja-1.13.2/ninja"; show Ninja "$NINJA" "$( [ -x "$NINJA" ] && "$NINJA" --version 2>/dev/null | head -1 )"
 MK=''; for p in "$INSTALLED/mkpsxiso"/*/bin/mkpsxiso; do [ -x "$p" ] && MK="$p" && break; done
 DX=''; for p in "$INSTALLED/mkpsxiso"/*/bin/dumpsxiso; do [ -x "$p" ] && DX="$p" && break; done
 show mkpsxiso "${MK:-/missing}" "$( [ -n "$MK" ] && "$MK" --help 2>&1 | head -1 )"
@@ -55,7 +56,6 @@ PYXD
 )"
   if [ -n "$XV" ]; then show xdelta3 "$X" "$XV"; else printf '%-18s %-9s %-48s %s\n' xdelta3 BROKEN "$X" '-'; FAIL=1; fi
 else show xdelta3 "$X" "$XV"; fi
-
 F="$INSTALLED/fontkit/Continue_Retro_Thai_Game_FontKit/FONTKIT.json"
 if [ "$MODE" = toolchain ]; then
   if [ -f "$F" ]; then printf '%-18s %-9s %-48s %s\n' FontKit OK "$F" '1.2.1 user asset'; else printf '%-18s %-9s %-48s %s\n' FontKit OPTIONAL "$F" 'restore before game/font work'; fi
@@ -71,8 +71,14 @@ if [ "$UTIL_OK" -eq 1 ]; then printf '%-18s %-9s %-48s %s\n' PS1-Utils OK "$UTIL
 LLVM="$INSTALLED/llvm-17.0.6"
 LLVM_OK=1
 for p in "$LLVM/bin/clang" "$LLVM/bin/ld.lld" "$LLVM/bin/llvm-objcopy" "$LLVM/bin/llvm-objdump" "$LLVM/lib/clang/17/include"; do [ -e "$p" ] || LLVM_OK=0; done
-if [ "$LLVM_OK" -eq 1 ]; then printf '%-18s %-9s %-48s %s\n' LLVM-Portable OK "$LLVM" "$($LLVM/bin/clang --version 2>/dev/null | head -1)"; else printf '%-18s %-9s %-48s %s\n' LLVM-Portable MISSING "$LLVM" '17.0.6 recovery artifact required'; FAIL=1; fi
-
+if [ "$LLVM_OK" -eq 1 ] && [ "$(wc -c < "$LLVM/bin/clang")" -eq 188753776 ] && "$LLVM/bin/clang" --version >/dev/null 2>&1; then
+  printf '%-18s %-9s %-48s %s\n' LLVM-Portable OK "$LLVM" "$($LLVM/bin/clang --version 2>/dev/null | head -1)"
+else
+  LLVM_OK=0
+  printf '%-18s %-9s %-48s %s\n' LLVM-Portable WARN "$LLVM" 'unavailable on this runtime; GCC fallback required'
+fi
+GCC="$INSTALLED/gcc-mipsel-none-elf-12.3.0/bin/mipsel-none-elf-gcc"
+show PS1-MIPS-GCC "$GCC" "$( [ -x "$GCC" ] && "$GCC" --version 2>/dev/null | head -1 )"
 FF="$(command -v ffmpeg 2>/dev/null || true)"
 if [ -n "$FF" ]; then printf '%-18s %-9s %-48s %s\n' FFmpeg OK "$FF" "$($FF -version 2>/dev/null | head -1)"; else printf '%-18s %-9s %-48s %s\n' FFmpeg MISSING '-' '-'; FAIL=1; fi
 IM="$(command -v magick 2>/dev/null || command -v convert 2>/dev/null || true)"
@@ -80,10 +86,11 @@ if [ -n "$IM" ]; then printf '%-18s %-9s %-48s %s\n' ImageMagick OK "$IM" "$($IM
 
 mkdir -p "$TOOLS/build"
 MIPS_LOG="$TOOLS/build/mips_verify.$$.log"
-if [ "$LLVM_OK" -eq 1 ] && "$PROJECT_ROOT/scripts/verify_mips_toolchain.sh" >"$MIPS_LOG" 2>&1; then
-  printf '%-18s %-9s %-48s %s\n' PS1-MIPS-Clang OK "$BIN/ps1-mips-cc" 'portable LLVM 17.0.6 MIPS-I target'
+if "$PROJECT_ROOT/scripts/verify_mips_toolchain.sh" >"$MIPS_LOG" 2>&1; then
+  if [ "$LLVM_OK" -eq 1 ]; then MIPS_IMPL='portable LLVM 17.0.6 MIPS-I target'; else MIPS_IMPL='portable GCC 12.3.0 R3000 fallback'; fi
+  printf '%-18s %-9s %-48s %s\n' PS1-MIPS-Compiler OK "$BIN/ps1-mips-cc" "$MIPS_IMPL"
 else
-  printf '%-18s %-9s %-48s %s\n' PS1-MIPS-Clang BROKEN "$BIN/ps1-mips-cc" "$(tr '\n' ' ' <"$MIPS_LOG" 2>/dev/null || true)"
+  printf '%-18s %-9s %-48s %s\n' PS1-MIPS-Compiler BROKEN "$BIN/ps1-mips-cc" "$(tr '\n' ' ' <"$MIPS_LOG" 2>/dev/null || true)"
   FAIL=1
 fi
 rm -f "$MIPS_LOG"

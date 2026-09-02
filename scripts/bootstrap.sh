@@ -4,7 +4,6 @@ source "$(cd "$(dirname "$0")" && pwd)/common.sh"
 mkdir -p "$CACHE" "$INSTALLED" "$BIN" "$TOOLS/src" "$TOOLS/build"
 OS="$(os_id)"; ARCH="$(arch_id)"
 echo "ContinueRetro-PS1 bootstrap: $OS/$ARCH"
-"$PROJECT_ROOT/scripts/install_system_deps.sh" || true
 have(){ command -v "$1" >/dev/null 2>&1; }
 download(){
   local url="$1" out="$2"; echo "Downloading $(basename "$out")"
@@ -17,6 +16,26 @@ PYDL_7821
 }
 verify_hash(){ local f="$1" expected="$2" got; [ -f "$f" ] || return 1; got="$(sha256_cmd "$f"|awk '{print $1}')"; [ "$expected" = TO_BE_RECORDED ] || [ "$expected" = NOT_BUILT_YET ] || [ "$got" = "$expected" ] || { echo "HASH MISMATCH: $f" >&2; echo "expected=$expected" >&2; echo "got=$got" >&2; return 1; }; }
 ensure_archive(){ local fn="$1" sha="$2" url="$3" f="$CACHE/$1"; if verify_hash "$f" "$sha"; then return 0; fi; [ "$url" != CACHE_OR_BUILD_FROM_SOURCE ] && [ "$url" != USER_PROJECT_ASSET ] || return 1; rm -f "$f"; download "$url" "$f"; verify_hash "$f" "$sha"; }
+
+if [ "$OS" = linux ] && [ "$ARCH" = x86_64 ]; then
+  if [ ! -x "$INSTALLED/cmake-4.4.3/bin/cmake" ]; then
+    ensure_archive cmake-4.4.3-linux-x86_64.tar.gz d6c83076c575bc00b823522ac974bda66d0af05d6ddc30e739c12385cf32c6cc https://github.com/Kitware/CMake/releases/download/v4.4.3/cmake-4.4.3-linux-x86_64.tar.gz
+    rm -rf "$INSTALLED/cmake-4.4.3"; mkdir -p "$INSTALLED/cmake-4.4.3"
+    tar --no-same-owner -xzf "$CACHE/cmake-4.4.3-linux-x86_64.tar.gz" --strip-components=1 -C "$INSTALLED/cmake-4.4.3"
+  fi
+  if [ ! -x "$INSTALLED/ninja-1.13.2/ninja" ]; then
+    ensure_archive ninja-linux-1.13.2.zip 5749cbc4e668273514150a80e387a957f933c6ed3f5f11e03fb30955e2bbead6 https://github.com/ninja-build/ninja/releases/download/v1.13.2/ninja-linux.zip
+    rm -rf "$INSTALLED/ninja-1.13.2"; mkdir -p "$INSTALLED/ninja-1.13.2"
+    unzip -q "$CACHE/ninja-linux-1.13.2.zip" -d "$INSTALLED/ninja-1.13.2"
+    chmod +x "$INSTALLED/ninja-1.13.2/ninja"
+  fi
+  ln -sfn ../installed/cmake-4.4.3/bin/cmake "$BIN/cmake"
+  ln -sfn ../installed/cmake-4.4.3/bin/ctest "$BIN/ctest"
+  ln -sfn ../installed/cmake-4.4.3/bin/cpack "$BIN/cpack"
+  ln -sfn ../installed/ninja-1.13.2/ninja "$BIN/ninja"
+fi
+
+"$PROJECT_ROOT/scripts/install_system_deps.sh" || true
 
 if [ ! -x "$INSTALLED/ghidra/ghidra_12.1.3_PUBLIC/support/analyzeHeadless" ]; then
   ensure_archive ghidra_12.1.3_PUBLIC_20260817.zip 93a5d11a9ad510622acaaf908c556a7b9b764d338e78a7567f3689bf5081fd54 https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.1.3_build/ghidra_12.1.3_PUBLIC_20260817.zip
@@ -114,6 +133,12 @@ if [ ! -x "$INSTALLED/xdelta3/xdelta3" ]; then
       cmake --build "$XD/build" -j "${CR_JOBS:-2}"; cp "$XD/build/xdelta3" "$INSTALLED/xdelta3/xdelta3"
     else echo 'WARN: xdelta3 archive/source unavailable; doctor will report missing.' >&2; fi
   fi
+fi
+
+if [ "$OS" = linux ] && [ "$ARCH" = x86_64 ] && [ ! -x "$INSTALLED/gcc-mipsel-none-elf-12.3.0/bin/mipsel-none-elf-gcc" ]; then
+  ensure_archive gcc-mipsel-none-elf-12.3.0-linux.zip 228f031a25cf2687d8845fd1421f625bafc211fa27da428e458e80d030a726f8 https://github.com/Lameguy64/PSn00bSDK/releases/download/v0.24/gcc-mipsel-none-elf-12.3.0-linux.zip
+  rm -rf "$INSTALLED/gcc-mipsel-none-elf-12.3.0"; mkdir -p "$INSTALLED/gcc-mipsel-none-elf-12.3.0"
+  unzip -q "$CACHE/gcc-mipsel-none-elf-12.3.0-linux.zip" -d "$INSTALLED/gcc-mipsel-none-elf-12.3.0"
 fi
 
 if [ "${CR_FETCH_SOURCES:-0}" = 1 ]; then

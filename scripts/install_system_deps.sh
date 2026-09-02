@@ -4,7 +4,7 @@ source "$(cd "$(dirname "$0")" && pwd)/common.sh"
 [ "${CR_SKIP_SYSTEM_DEPS:-0}" = 1 ] && { echo 'Skipping system dependencies (CR_SKIP_SYSTEM_DEPS=1).'; exit 0; }
 have(){ command -v "$1" >/dev/null 2>&1; }
 need=()
-for c in bash python3 git cmake ninja java unzip ffmpeg clang ld.lld llvm-objcopy llvm-objdump; do have "$c" || need+=("$c"); done
+for c in bash python3 git cmake ninja java unzip ffmpeg; do have "$c" || need+=("$c"); done
 if ! have magick && ! have convert; then need+=(imagemagick); fi
 [ ${#need[@]} -eq 0 ] && { echo 'System dependencies already present.'; exit 0; }
 echo "Missing system dependencies: ${need[*]}"
