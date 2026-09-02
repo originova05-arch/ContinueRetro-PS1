@@ -43,20 +43,28 @@ fi
 if [ -f "$CACHE/Continue_Retro_Thai_Game_FontKit_v1.2.1.zip" ] && [ ! -d "$INSTALLED/fontkit/Continue_Retro_Thai_Game_FontKit" ]; then mkdir -p "$INSTALLED/fontkit"; unzip -q "$CACHE/Continue_Retro_Thai_Game_FontKit_v1.2.1.zip" -d "$INSTALLED/fontkit"; fi
 
 if [ "$OS" = linux ] && [ "$ARCH" = x86_64 ]; then
-  if [ -f "$CACHE/DuckStation-x64.AppImage" ]; then
-    verify_hash "$CACHE/DuckStation-x64.AppImage" c5c8a9de4dfc10e794137dcb8bab9760ca578df2aa7be8c1215171bebbba5965
-  else
-    echo 'DuckStation exact cache absent; trying rolling URL and enforcing locked hash.'
-    ensure_archive DuckStation-x64.AppImage c5c8a9de4dfc10e794137dcb8bab9760ca578df2aa7be8c1215171bebbba5965 https://github.com/stenzek/duckstation/releases/download/latest/DuckStation-x64.AppImage
+  # A recovery artifact already contains the extracted AppRun. Reuse it without
+  # forcing a network download or depending on a previous host cache.
+  if [ ! -x "$INSTALLED/duckstation/squashfs-root/AppRun" ]; then
+    if [ -f "$CACHE/DuckStation-x64.AppImage" ]; then
+      verify_hash "$CACHE/DuckStation-x64.AppImage" c5c8a9de4dfc10e794137dcb8bab9760ca578df2aa7be8c1215171bebbba5965
+    else
+      echo 'DuckStation exact cache absent; trying locked download.'
+      ensure_archive DuckStation-x64.AppImage c5c8a9de4dfc10e794137dcb8bab9760ca578df2aa7be8c1215171bebbba5965 https://github.com/stenzek/duckstation/releases/download/latest/DuckStation-x64.AppImage
+    fi
+    mkdir -p "$INSTALLED/duckstation"; cp -f "$CACHE/DuckStation-x64.AppImage" "$INSTALLED/duckstation/DuckStation-x64.AppImage"; chmod +x "$INSTALLED/duckstation/DuckStation-x64.AppImage"
+    rm -rf "$INSTALLED/duckstation/squashfs-root"; (cd "$INSTALLED/duckstation" && ./DuckStation-x64.AppImage --appimage-extract >/dev/null)
   fi
-  mkdir -p "$INSTALLED/duckstation"; cp -f "$CACHE/DuckStation-x64.AppImage" "$INSTALLED/duckstation/DuckStation-x64.AppImage"; chmod +x "$INSTALLED/duckstation/DuckStation-x64.AppImage"
-  if [ ! -x "$INSTALLED/duckstation/squashfs-root/AppRun" ]; then rm -rf "$INSTALLED/duckstation/squashfs-root"; (cd "$INSTALLED/duckstation" && ./DuckStation-x64.AppImage --appimage-extract >/dev/null); fi
 
-  if [ -f "$CACHE/PCSX-Redux-2a36099dc-anylinux-x86_64.AppImage" ]; then
-    verify_hash "$CACHE/PCSX-Redux-2a36099dc-anylinux-x86_64.AppImage" 92e000c82813f7a0123d2268e04811515dba4b04169d1616bec62547b7eb7f0e
-    mkdir -p "$INSTALLED/pcsx-redux"; cp -f "$CACHE/PCSX-Redux-2a36099dc-anylinux-x86_64.AppImage" "$INSTALLED/pcsx-redux/PCSX-Redux.AppImage"; chmod +x "$INSTALLED/pcsx-redux/PCSX-Redux.AppImage"
-    if [ ! -x "$INSTALLED/pcsx-redux/squashfs-root/AppRun" ]; then rm -rf "$INSTALLED/pcsx-redux/squashfs-root"; (cd "$INSTALLED/pcsx-redux" && ./PCSX-Redux.AppImage --appimage-extract >/dev/null); fi
-  else echo 'WARN: exact PCSX-Redux AppImage cache missing; build pinned source on this host.' >&2; fi
+  if [ ! -x "$INSTALLED/pcsx-redux/squashfs-root/AppRun" ]; then
+    if [ -f "$CACHE/PCSX-Redux-2a36099dc-anylinux-x86_64.AppImage" ]; then
+      verify_hash "$CACHE/PCSX-Redux-2a36099dc-anylinux-x86_64.AppImage" 92e000c82813f7a0123d2268e04811515dba4b04169d1616bec62547b7eb7f0e
+      mkdir -p "$INSTALLED/pcsx-redux"; cp -f "$CACHE/PCSX-Redux-2a36099dc-anylinux-x86_64.AppImage" "$INSTALLED/pcsx-redux/PCSX-Redux.AppImage"; chmod +x "$INSTALLED/pcsx-redux/PCSX-Redux.AppImage"
+      rm -rf "$INSTALLED/pcsx-redux/squashfs-root"; (cd "$INSTALLED/pcsx-redux" && ./PCSX-Redux.AppImage --appimage-extract >/dev/null)
+    else
+      echo 'WARN: PCSX-Redux recovery/cache missing; restore the pinned Actions artifact or build pinned source.' >&2
+    fi
+  fi
 fi
 
 if [ ! -x "$INSTALLED/xdelta3/xdelta3" ]; then
@@ -71,7 +79,7 @@ if [ ! -x "$INSTALLED/xdelta3/xdelta3" ]; then
     fi
   fi
   SYS_XD="$(command -v xdelta3 2>/dev/null || true)"
-  if [ ! -x "$INSTALLED/xdelta3/xdelta3" ] && [ -n "$SYS_XD" ] && [ "$(cd "$(dirname "$SYS_XD")" && pwd)/$(basename "$SYS_XD")" != "$BIN/xdelta3" ]; then
+  if [ ! -x "$INSTALLED/xdelta3/xdelta3" ] && [ -n "$SYS_XD" ] && [ "$(cd "$(dirname "$SYS_XD")" && pwd)/$(basename "$SYS_XD")" != "$BIN/xdelta3" ] && [[ "$SYS_XD" != /usr/local/* ]]; then
     if "$SYS_XD" -V >/dev/null 2>&1; then cp "$SYS_XD" "$INSTALLED/xdelta3/xdelta3"; fi
   fi
   if [ ! -x "$INSTALLED/xdelta3/xdelta3" ] && have git && have cmake; then
@@ -95,4 +103,4 @@ fi
 
 "$PROJECT_ROOT/scripts/make_wrappers.sh"
 "$PROJECT_ROOT/scripts/verify_toolchain.sh" || true
-echo 'Bootstrap completed. Run: ./scripts/doctor.sh'
+echo 'Bootstrap completed. Run: ./scripts/doctor.sh --toolchain-only'
