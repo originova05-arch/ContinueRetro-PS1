@@ -4,32 +4,48 @@ Toolchain lock date: **2026-09-02 (Asia/Bangkok)**. Exact machine-readable refs 
 
 | Program | Version/ref | Role | Portable path | Install/build | Dependencies | OS/architecture |
 |---|---|---|---|---|---|---|
-| Ghidra | 12.1.3 / `Ghidra_12.1.3_build` | MIPS/PS-X EXE reverse engineering; renderer/font/string analysis | `tools/installed/ghidra/ghidra_12.1.3_PUBLIC/` | `bootstrap.sh` extracts locked ZIP; recovery artifact can restore installed tree | Java 21 | Java platforms; headless tested Linux x86_64 |
-| mkpsxiso | 2.30 | PS1 image rebuild, fixed LBA layout, LBA logs | `tools/installed/mkpsxiso/.../bin/mkpsxiso` | Locked Linux/Darwin ZIP; source tag `v2.30` | release-native libs | Linux x86_64 tested; Darwin package cached |
+| Ghidra | 12.1.3 / `Ghidra_12.1.3_build` | MIPS/PS-X EXE reverse engineering; renderer/font/string analysis | `tools/installed/ghidra/ghidra_12.1.3_PUBLIC/` | locked ZIP or core recovery artifact | Java 21 | Java platforms; headless tested Linux x86_64 |
+| mkpsxiso | 2.30 | PS1 image rebuild, fixed LBA layout, LBA logs | `tools/installed/mkpsxiso/.../bin/mkpsxiso` | locked Linux/Darwin ZIP or core recovery artifact | release-native libs | Linux x86_64 tested; Darwin package cached |
 | dumpsxiso | 2.30 | BIN/CUE extraction and XML/LBA generation | same package as mkpsxiso | same | same | Linux x86_64 tested |
-| jPSXdec | 2.1 beta | STR/XA/media/CD-sector inspection | `tools/installed/jpsxdec/jpsxdec_v2.1-beta/` | locked ZIP | Java | tested Java 21 |
-| DuckStation | 0.1-11826-gfe2306b1f; commit `fe2306b1f0f7...` | Runtime QA/screenshots/controller validation | `tools/installed/duckstation/` | exact AppImage or recovery artifact | Linux display/Xvfb; software renderer recommended in this container | Linux x86_64 tested |
-| PCSX-Redux | commit `2a36099dc24c...` | Debugger/runtime/reverse engineering | `tools/installed/pcsx-redux/` | exact cache when available; otherwise Actions recovery build from pinned source | bundled native dependencies | Linux x86_64 tested |
-| xdelta3 | 3.2.0 / tag `v3.2.0` | User-distributable delta patch creation/application | `tools/installed/xdelta3/xdelta3` | locked Linux x86_64 tarball; pinned CMake source fallback | no runtime dependency for locked binary | Linux x86_64 tested |
-| FFmpeg | 7.1.5 (runtime-tested) | Media inspection/transcode; XA/STR QA support; screenshot/video pipelines | system package | checked by bootstrap/doctor | codec libraries bundled by OS package | Linux x86_64 tested; macOS package recipe included |
-| ImageMagick | 7.1.2-1 (runtime-tested) | Bitmap/font atlas inspection, crop/montage/GIF/image QA | system package | checked by bootstrap/doctor | OS image libraries | Linux x86_64 tested; macOS package recipe included |
-| PS1 MIPS LLVM | LLVM/Clang 17.0.6 | Compile/link renderer hooks and PS1 payloads for R3000A/MIPS-I | `tools/installed/llvm-17.0.6/` and `tools/bin/ps1-mips-*` | pinned official LLVM archive restored by Actions recovery artifact | repository-local clang, ld.lld, llvm-objcopy, llvm-objdump | Linux x86_64 |
+| jPSXdec | 2.1 beta | STR/XA/media/CD-sector inspection | `tools/installed/jpsxdec/jpsxdec_v2.1-beta/` | locked ZIP or core recovery artifact | Java | tested Java 21 |
+| DuckStation | 0.1-11826-gfe2306b1f; commit `fe2306b1f0f7...` | Runtime QA/screenshots/controller validation | `tools/installed/duckstation/` | exact AppImage or core recovery artifact | Linux display/Xvfb; software renderer recommended in headless QA | Linux x86_64 tested |
+| PCSX-Redux | commit `2a36099dc24c...`; AppDistrib build **303** | Debugger/runtime/reverse engineering | `tools/installed/pcsx-redux/` | exact upstream CI publication verified by embedded `version.json`; PCSX recovery artifact | bundled native dependencies | Linux x86_64 tested |
+| xdelta3 | 3.2.0 / tag `v3.2.0` | User-distributable delta patch creation/application | `tools/installed/xdelta3/xdelta3` | locked Linux x86_64 tarball; pinned source fallback; core recovery artifact | no runtime dependency for locked binary | Linux x86_64 tested |
+| FFmpeg | system package | Media inspection/transcode; XA/STR QA support; screenshot/video pipelines | `/usr/bin/ffmpeg` on validated Ubuntu runner | `bootstrap.sh` installs/checks host package | codec libraries supplied by OS package | Linux/macOS recipes |
+| ImageMagick | system package | Bitmap/font atlas inspection, crop/montage/GIF/image QA | `/usr/bin/convert` or `magick` | `bootstrap.sh` installs/checks host package | OS image libraries | Linux/macOS recipes |
+| PS1 MIPS LLVM | LLVM/Clang 17.0.6 | Compile/link renderer hooks and PS1 payloads for R3000A/MIPS-I | `tools/installed/llvm-17.0.6/` and `tools/bin/ps1-mips-*` | pinned official LLVM archive restored by LLVM recovery artifact | repository-local clang, ld.lld, llvm-objcopy, llvm-objdump | Linux x86_64 |
 | Continue Retro Thai Game FontKit | 1.2.1 | Thai glyph sources/profiles/placement/QA scripts | `tools/installed/fontkit/`; source/config under `tools/src/fontkit/` when available | user project asset + Python builders | Python requirements in kit | cross-platform Python; Zoids 2 target 16×13 |
 | ContinueRetro PS1 utils | repo version | Shift-JIS scan, raw 2352 helper, LBA map, PS-X EXE header inspection | `tools/src/continue-retro-ps1-utils/` | source tracked in repo | Python 3 | cross-platform Python; shell wrappers Unix-like |
 
 ## Fresh-runtime recovery
 
-A new runtime must not depend on `/tmp`, `/usr/local`, or leftover project directories from another runtime. Restore the Linux recovery artifacts generated by:
+A fresh runtime must not use `/tmp`, `/usr/local`, or leftover project directories from another runtime as project state. On Linux x86_64 the proven recovery set is generated by these workflows:
 
-- `.github/workflows/toolchain-recovery.yml` → `ContinueRetro-PS1-toolchain-linux-x86_64`
-- `.github/workflows/llvm-recovery.yml` → `ContinueRetro-PS1-llvm-17.0.6-linux-x86_64`
+- `.github/workflows/core-recovery.yml`
+  - `ContinueRetro-PS1-core-linux-x86_64-part-00`
+  - `ContinueRetro-PS1-core-linux-x86_64-part-01`
+  - `ContinueRetro-PS1-core-linux-x86_64-metadata`
+- `.github/workflows/llvm-recovery.yml`
+  - `ContinueRetro-PS1-llvm-17.0.6-linux-x86_64`
+- `.github/workflows/pcsx-recovery-extract.yml`
+  - `ContinueRetro-PS1-pcsx-redux-2a36099dc-linux-x86_64`
 
-Extract both at the repository root so their `tools/installed/...` paths are restored. Restore the user-owned FontKit ZIP as `tools/cache/Continue_Retro_Thai_Game_FontKit_v1.2.1.zip`, then run:
+The older `.github/workflows/toolchain-recovery.yml` source-build path is **not the canonical recovery path** because its PCSX-Redux source-build step was not retained as the proven artifact source. Use the three artifacts above instead.
+
+Restore the artifacts so their `tools/installed/...` paths land under the repository root. Restore the user-owned FontKit ZIP as:
+
+```text
+tools/cache/Continue_Retro_Thai_Game_FontKit_v1.2.1.zip
+```
+
+Then run:
 
 ```bash
 ./scripts/bootstrap.sh
 ./scripts/doctor.sh --toolchain-only
 ```
+
+`--toolchain-only` treats FontKit as an optional **user asset** so a pure toolchain recovery can be proven independently. FontKit remains required before actual Thai font/game work.
 
 Do not modify game resources unless the doctor ends with:
 
@@ -37,7 +53,51 @@ Do not modify game resources unless the doctor ends with:
 READY: PS1 localization toolchain healthy.
 ```
 
-`bootstrap.sh` reuses a valid restored DuckStation/PCSX-Redux installed tree instead of forcing a fresh network download.
+`bootstrap.sh` reuses valid restored DuckStation/PCSX-Redux installed trees instead of forcing a fresh download. For PCSX-Redux, the fallback is also locked to AppDistrib build 303 and validates both the upstream archive hash and the AppImage embedded `version.json` before accepting it.
+
+## Recovery hashes
+
+### Core recovery
+
+- source workflow run: `33650520580`
+- part 00 SHA-256: `810d7a806acbaf6b42afd432d4431b646bfdc9c94fafe0acd9200ec4fb88bfe2`
+- part 01 SHA-256: `3aaa49f0e717a95bb6af7e1bbed73ef10fe004396306124e9f0778dea760b76a`
+- reassembled core tar SHA-256: `7187ce15f58cbdbe3cc78b8777164924aee95d8e8559059a789dc3459909306f`
+
+### Portable LLVM
+
+- source workflow run: `33649467134`
+- recovery tar SHA-256: `5d7c3c1814fd8317a28ccb3d960601d074cc745a3d1824d80debdd283a4a9b61`
+- official LLVM 17.0.6 archive SHA-256: `884ee67d647d77e58740c1e645649e29ae9e8a6fe87c1376be0f3a30f3cc9ab3`
+
+### PCSX-Redux exact pin
+
+- source ref: `2a36099dc24c5a746854e3de8359c40e5af21c10`
+- AppDistrib build ID: `303`
+- upstream ZIP SHA-256: `6f2cb4948cf994cce7f7eb87ab6a782b5defde550c189aa734b3fb30cbcb5a8a`
+- contained AppImage SHA-256: `e9ff0c6a1faad9946b5b8be15261bb1138a4bb7f2385297475e4075174ab7fa6`
+- recovery workflow run: `33653525132`
+- recovery tar SHA-256: `8f803d187af87d0d10a0d8a2c9b288184a63779c4503b82a1cb2f867be99cffc`
+
+## Proven clean-runtime doctor gate
+
+`.github/workflows/toolchain-doctor-validation.yml` performs a clean checkout, downloads the recovery artifacts above, verifies their SHA-256 values **before extraction**, restricts `PATH` to the repository tools plus `/usr/bin:/bin`, runs bootstrap, and then runs the toolchain-only doctor.
+
+Validated on **2026-09-02 23:22 Asia/Bangkok**:
+
+- workflow run: `33654258913`
+- job: `100328741035`
+- result: **PASS**
+- final doctor line: `READY: PS1 localization toolchain healthy.`
+- doctor evidence artifact ID: `9856105162`
+- evidence artifact ZIP SHA-256: `7fea0709ebf56a4be2b61c7e3a0d648a6bb4c8f6817a0195e1844b3508faaece`
+- `BOOTSTRAP.log` SHA-256: `ef214013b3067eb9fafa8c9fd71e143037260bc5fb400933ee7065281f88f6b1`
+- `DOCTOR_TOOLCHAIN_ONLY.log` SHA-256: `ea37042a3867bf1746129875edb0c5a03514f4f84ac0a82cb2bf67224e30f616`
+- `DOCTOR_RECOVERY_SOURCES.txt` SHA-256: `80f512ba54782336450a1e34f57cc5a587a28799c3f0d4e0530e87121449b8f0`
+
+The validated doctor reported OK for mkpsxiso, dumpsxiso, Ghidra, jPSXdec, DuckStation, exact PCSX-Redux build 303, xdelta3, ContinueRetro PS1 utilities, repository-local LLVM 17.0.6, FFmpeg, ImageMagick, and the PS1 MIPS-I smoke test. Required host commands resolved under `/usr/bin`; no forbidden `/tmp` or `/usr/local` dependency was accepted.
+
+`bootstrap.sh` may install missing generic host packages such as CMake, Ninja, Java, FFmpeg, or ImageMagick into normal OS package locations (for the validated Ubuntu runtime, `/usr/bin`). The project-owned/pinned PS1 tools and compiler recovery remain under `tools/installed/` and `tools/bin/`.
 
 ## Use
 
@@ -60,12 +120,12 @@ pcsx-redux ...
 CR_FETCH_SOURCES=1 ./scripts/bootstrap.sh
 ```
 
-If a binary no longer works on a new OS/architecture, rebuild the recorded source ref rather than silently upgrading.
+If a binary no longer works on a new OS/architecture, rebuild or recover the recorded source/version rather than silently upgrading.
 
 ## Runtime QA reference for Zoids 2
 
-- BIOS: user-owned `SCPH5500.BIN` (private), SHA-256 `9c0421858e217805f4abe18698afea8d5aa36ff0727eb8484944e00eb5e7eadb`.
-- DuckStation: software renderer in the container/Xvfb environment.
+- BIOS: user-owned `SCPH5500.BIN` (private), expected SHA-256 `9c0421858e217805f4abe18698afea8d5aa36ff0727eb8484944e00eb5e7eadb`.
+- DuckStation: software renderer is the preferred headless QA path.
 - Controller: if navigation is inactive, use DuckStation quick-menu **Toggle Analog** before testing input.
 
 Game images/BIOS are deliberately kept under `PRIVATE/` and excluded from Git.
