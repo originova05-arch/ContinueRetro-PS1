@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 source "$(cd "$(dirname "$0")" && pwd)/common.sh"
-mkdir -p "$CACHE" "$INSTALLED" "$BIN" "$TOOLS/src"
+mkdir -p "$CACHE" "$INSTALLED" "$BIN" "$TOOLS/src" "$TOOLS/build"
 OS="$(os_id)"; ARCH="$(arch_id)"
 echo "ContinueRetro-PS1 bootstrap: $OS/$ARCH"
 "$PROJECT_ROOT/scripts/install_system_deps.sh" || true
 have(){ command -v "$1" >/dev/null 2>&1; }
 download(){
   local url="$1" out="$2"; echo "Downloading $(basename "$out")"
-  if have curl; then curl -L --fail --retry 3 -o "$out.part" "$url" && mv "$out.part" "$out"; return; fi
-  if have wget; then wget -O "$out.part" "$url" && mv "$out.part" "$out"; return; fi
+  if have curl; then curl -L --fail --retry 8 --retry-all-errors --retry-delay 2 -o "$out.part" "$url" && mv "$out.part" "$out"; return; fi
+  if have wget; then wget --tries=8 -O "$out.part" "$url" && mv "$out.part" "$out"; return; fi
   python3 - "$url" "$out" <<'PYDL_7821'
 import os,sys,urllib.request
 u,o=sys.argv[1:]; t=o+'.part'; urllib.request.urlretrieve(u,t); os.replace(t,o)
@@ -40,11 +40,13 @@ if [ ! -f "$INSTALLED/jpsxdec/jpsxdec_v2.1-beta/jpsxdec.jar" ]; then
   rm -rf "$INSTALLED/jpsxdec"; mkdir -p "$INSTALLED/jpsxdec"; unzip -q "$CACHE/jpsxdec_v2.1-beta.zip" -d "$INSTALLED/jpsxdec"
 fi
 
-if [ -f "$CACHE/Continue_Retro_Thai_Game_FontKit_v1.2.1.zip" ] && [ ! -d "$INSTALLED/fontkit/Continue_Retro_Thai_Game_FontKit" ]; then mkdir -p "$INSTALLED/fontkit"; unzip -q "$CACHE/Continue_Retro_Thai_Game_FontKit_v1.2.1.zip" -d "$INSTALLED/fontkit"; fi
+if [ -f "$CACHE/Continue_Retro_Thai_Game_FontKit_v1.2.1.zip" ] && [ ! -d "$INSTALLED/fontkit/Continue_Retro_Thai_Game_FontKit" ]; then
+  mkdir -p "$INSTALLED/fontkit"; unzip -q "$CACHE/Continue_Retro_Thai_Game_FontKit_v1.2.1.zip" -d "$INSTALLED/fontkit"
+fi
 
 if [ "$OS" = linux ] && [ "$ARCH" = x86_64 ]; then
-  # A recovery artifact already contains the extracted AppRun. Reuse it without
-  # forcing a network download or depending on a previous host cache.
+  # Recovery artifacts restore extracted AppRun trees. Reuse them without a
+  # network dependency. If absent, fetch only locked upstream bytes.
   if [ ! -x "$INSTALLED/duckstation/squashfs-root/AppRun" ]; then
     if [ -f "$CACHE/DuckStation-x64.AppImage" ]; then
       verify_hash "$CACHE/DuckStation-x64.AppImage" c5c8a9de4dfc10e794137dcb8bab9760ca578df2aa7be8c1215171bebbba5965
@@ -57,13 +59,34 @@ if [ "$OS" = linux ] && [ "$ARCH" = x86_64 ]; then
   fi
 
   if [ ! -x "$INSTALLED/pcsx-redux/squashfs-root/AppRun" ]; then
-    if [ -f "$CACHE/PCSX-Redux-2a36099dc-anylinux-x86_64.AppImage" ]; then
-      verify_hash "$CACHE/PCSX-Redux-2a36099dc-anylinux-x86_64.AppImage" 92e000c82813f7a0123d2268e04811515dba4b04169d1616bec62547b7eb7f0e
-      mkdir -p "$INSTALLED/pcsx-redux"; cp -f "$CACHE/PCSX-Redux-2a36099dc-anylinux-x86_64.AppImage" "$INSTALLED/pcsx-redux/PCSX-Redux.AppImage"; chmod +x "$INSTALLED/pcsx-redux/PCSX-Redux.AppImage"
-      rm -rf "$INSTALLED/pcsx-redux/squashfs-root"; (cd "$INSTALLED/pcsx-redux" && ./PCSX-Redux.AppImage --appimage-extract >/dev/null)
-    else
-      echo 'WARN: PCSX-Redux recovery/cache missing; restore the pinned Actions artifact or build pinned source.' >&2
+    PCSX_ZIP="$CACHE/PCSX-Redux-2a36099d-linux-x86_64.zip"
+    if ! verify_hash "$PCSX_ZIP" 6f2cb4948cf994cce7f7eb87ab6a782b5defde550c189aa734b3fb30cbcb5a8a; then
+      ensure_archive PCSX-Redux-2a36099d-linux-x86_64.zip 6f2cb4948cf994cce7f7eb87ab6a782b5defde550c189aa734b3fb30cbcb5a8a https://distrib.app/storage/assets/014/02c/c24/1b2460420ff468b4c524528a29928c3c2223ef423a3e362a5055f1f/PCSX-Redux-2a36099d-linux-x86_64.zip
     fi
+    PCSX_UNPACK="$TOOLS/build/pcsx-redux-upstream"
+    rm -rf "$PCSX_UNPACK"; mkdir -p "$PCSX_UNPACK"
+    unzip -q "$PCSX_ZIP" -d "$PCSX_UNPACK"
+    PCSX_APPIMAGE="$(find "$PCSX_UNPACK" -maxdepth 2 -type f -name '*.AppImage' | head -1)"
+    [ -n "$PCSX_APPIMAGE" ] || { echo 'PCSX-Redux AppImage missing from locked upstream ZIP' >&2; exit 1; }
+    verify_hash "$PCSX_APPIMAGE" e9ff0c6a1faad9946b5b8be15261bb1138a4bb7f2385297475e4075174ab7fa6
+    rm -rf "$INSTALLED/pcsx-redux"; mkdir -p "$INSTALLED/pcsx-redux"
+    cp "$PCSX_APPIMAGE" "$INSTALLED/pcsx-redux/PCSX-Redux.AppImage"; chmod +x "$INSTALLED/pcsx-redux/PCSX-Redux.AppImage"
+    (cd "$INSTALLED/pcsx-redux" && ./PCSX-Redux.AppImage --appimage-extract >/dev/null)
+    PCSX_VERSION="$(find "$INSTALLED/pcsx-redux/squashfs-root" -type f -path '*/share/pcsx-redux/resources/version.json' | head -1)"
+    python3 - "$PCSX_VERSION" <<'PYPCSX'
+import json,sys
+p=json.load(open(sys.argv[1]))
+assert p.get('changeset') == '2a36099dc24c5a746854e3de8359c40e5af21c10'
+assert str(p.get('buildId')) == '303'
+assert p.get('version') == '2a36099d'
+PYPCSX
+    cat > "$INSTALLED/pcsx-redux/RECOVERY_SOURCE.txt" <<'EOFPCSX'
+source_ref=2a36099dc24c5a746854e3de8359c40e5af21c10
+appdistrib_build_id=303
+manifest_url=https://distrib.app/storage/manifests/pcsx-redux/dev-linux-x64/manifest-303.json
+upstream_zip_sha256=6f2cb4948cf994cce7f7eb87ab6a782b5defde550c189aa734b3fb30cbcb5a8a
+appimage_sha256=e9ff0c6a1faad9946b5b8be15261bb1138a4bb7f2385297475e4075174ab7fa6
+EOFPCSX
   fi
 fi
 
@@ -79,7 +102,7 @@ if [ ! -x "$INSTALLED/xdelta3/xdelta3" ]; then
     fi
   fi
   SYS_XD="$(command -v xdelta3 2>/dev/null || true)"
-  if [ ! -x "$INSTALLED/xdelta3/xdelta3" ] && [ -n "$SYS_XD" ] && [ "$(cd "$(dirname "$SYS_XD")" && pwd)/$(basename "$SYS_XD")" != "$BIN/xdelta3" ] && [[ "$SYS_XD" != /usr/local/* ]]; then
+  if [ ! -x "$INSTALLED/xdelta3/xdelta3" ] && [ -n "$SYS_XD" ] && [ "$(cd "$(dirname "$SYS_XD")" && pwd)/$(basename "$SYS_XD")" != "$BIN/xdelta3" ] && [[ "$SYS_XD" != /usr/local/* ]] && [[ "$SYS_XD" != /tmp/* ]]; then
     if "$SYS_XD" -V >/dev/null 2>&1; then cp "$SYS_XD" "$INSTALLED/xdelta3/xdelta3"; fi
   fi
   if [ ! -x "$INSTALLED/xdelta3/xdelta3" ] && have git && have cmake; then
@@ -92,6 +115,7 @@ if [ ! -x "$INSTALLED/xdelta3/xdelta3" ]; then
     else echo 'WARN: xdelta3 archive/source unavailable; doctor will report missing.' >&2; fi
   fi
 fi
+
 if [ "${CR_FETCH_SOURCES:-0}" = 1 ]; then
   clone_pin(){ local n="$1" u="$2" ref="$3" d="$TOOLS/src/$1"; [ -d "$d/.git" ] || git clone --recursive "$u" "$d"; git -C "$d" fetch --all --tags; git -C "$d" checkout "$ref"; git -C "$d" submodule update --init --recursive; }
   clone_pin ghidra https://github.com/NationalSecurityAgency/ghidra.git Ghidra_12.1.3_build || true
