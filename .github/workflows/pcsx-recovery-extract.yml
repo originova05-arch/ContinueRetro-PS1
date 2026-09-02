@@ -9,46 +9,30 @@ on:
 permissions:
   contents: read
 
+env:
+  PCSX_REDUX_REF: '2a36099dc24c5a746854e3de8359c40e5af21c10'
+
 jobs:
-  recover-pcsx:
+  build-pcsx:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    env:
-      TARGET_REF: 2a36099dc24c5a746854e3de8359c40e5af21c10
-      BUILD_ID: '303'
-      MANIFEST_URL: https://distrib.app/storage/manifests/pcsx-redux/dev-linux-x64/manifest-303.json
-      UPSTREAM_URL: https://distrib.app/storage/assets/014/02c/c24/1b2460420ff468b4c524528a29928c3c2223ef423a3e362a5055f1f/PCSX-Redux-2a36099d-linux-x86_64.zip
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify upstream AppDistrib manifest is the exact pinned changeset
+      - name: Build pinned PCSX-Redux AppImage
         run: |
           set -euxo pipefail
-          rm -rf tools/installed/pcsx-redux recovery/pcsx recovery/upstream
-          mkdir -p tools/installed/pcsx-redux recovery/pcsx recovery/upstream
-          curl -L --fail --retry 8 --retry-all-errors --retry-delay 2 "$MANIFEST_URL" -o recovery/pcsx/upstream-manifest-303.json
-          python3 - <<'PY'
-          import json, os
-          p='recovery/pcsx/upstream-manifest-303.json'
-          d=json.load(open(p))
-          m=d.get('manifest', {})
-          assert str(m.get('buildId')) == os.environ['BUILD_ID'], m
-          assert m.get('changeset') == os.environ['TARGET_REF'], m
-          assert m.get('version') == os.environ['TARGET_REF'][:8], m
-          assert 'PCSX-Redux-2a36099d-linux-x86_64.zip' in d.get('path',''), d
-          print('PASS exact AppDistrib manifest:', m['buildId'], m['changeset'])
-          print('upstream_path=', d['path'])
-          PY
-
-      - name: Download and verify exact upstream AppImage metadata
-        run: |
-          set -euxo pipefail
-          curl -L --fail --retry 8 --retry-all-errors --retry-delay 2 "$UPSTREAM_URL" -o recovery/upstream/PCSX-Redux-2a36099d-linux-x86_64.zip
-          sha256sum recovery/upstream/PCSX-Redux-2a36099d-linux-x86_64.zip | tee recovery/pcsx/UPSTREAM_ZIP_SHA256.txt
-          unzip -q recovery/upstream/PCSX-Redux-2a36099d-linux-x86_64.zip -d recovery/upstream/unpacked
-          APPIMAGE="$(find recovery/upstream/unpacked -maxdepth 2 -type f -name '*.AppImage' | head -1)"
+          rm -rf tools/build/pcsx-redux-src
+          git clone --recursive https://github.com/grumpycoders/pcsx-redux.git tools/build/pcsx-redux-src
+          git -C tools/build/pcsx-redux-src checkout "$PCSX_REDUX_REF"
+          git -C tools/build/pcsx-redux-src submodule update --init --recursive
+          (
+            cd tools/build/pcsx-redux-src
+            ./dockermake.sh appimage
+          )
+          APPIMAGE="$(find tools/build/pcsx-redux-src -maxdepth 2 -type f -name 'PCSX-Redux-*-x86_64.AppImage' | head -1)"
           test -n "$APPIMAGE"
-          sha256sum "$APPIMAGE" | tee recovery/pcsx/UPSTREAM_APPIMAGE_SHA256.txt
+          mkdir -p tools/installed/pcsx-redux
           cp "$APPIMAGE" tools/installed/pcsx-redux/PCSX-Redux.AppImage
           chmod +x tools/installed/pcsx-redux/PCSX-Redux.AppImage
           (
@@ -56,48 +40,22 @@ jobs:
             ./PCSX-Redux.AppImage --appimage-extract >/dev/null
           )
           test -x tools/installed/pcsx-redux/squashfs-root/AppRun
-          VERSION_JSON="$(find tools/installed/pcsx-redux/squashfs-root -type f -path '*/share/pcsx-redux/resources/version.json' | head -1)"
-          test -n "$VERSION_JSON"
-          python3 - "$VERSION_JSON" <<'PY'
-          import json, os, sys
-          d=json.load(open(sys.argv[1]))
-          assert d.get('changeset') == os.environ['TARGET_REF'], d
-          assert str(d.get('buildId')) == os.environ['BUILD_ID'], d
-          assert d.get('version') == os.environ['TARGET_REF'][:8], d
-          print('PASS embedded version.json:', d['buildId'], d['changeset'])
-          PY
-          cp "$VERSION_JSON" recovery/pcsx/EMBEDDED_VERSION.json
-          {
-            echo "source_ref=$TARGET_REF"
-            echo "appdistrib_build_id=$BUILD_ID"
-            echo "manifest_url=$MANIFEST_URL"
-            echo "upstream_url=$UPSTREAM_URL"
-          } > tools/installed/pcsx-redux/RECOVERY_SOURCE.txt
+          printf 'source_ref=%s\n' "$PCSX_REDUX_REF" > tools/installed/pcsx-redux/RECOVERY_SOURCE.txt
 
-      - name: Package PCSX-only recovery bundle
+      - name: Package PCSX-Redux recovery bundle
         run: |
           set -euxo pipefail
-          {
-            echo 'ContinueRetro-PS1 PCSX-Redux portable recovery bundle'
-            echo 'platform=linux-x86_64'
-            echo "repo_commit=${GITHUB_SHA}"
-            echo "source_ref=$TARGET_REF"
-            echo "appdistrib_build_id=$BUILD_ID"
-            echo
-            find tools/installed/pcsx-redux -type f -print0 | sort -z | xargs -0 sha256sum
-          } > recovery/pcsx/PCSX_RECOVERY_MANIFEST.txt
-          tar -C . -czf recovery/pcsx/ContinueRetro-PS1-pcsx-redux-2a36099dc-linux-x86_64.tar.gz tools/installed/pcsx-redux
-          sha256sum recovery/pcsx/ContinueRetro-PS1-pcsx-redux-2a36099dc-linux-x86_64.tar.gz > recovery/pcsx/PCSX_RECOVERY_SHA256.txt
-          du -h recovery/pcsx/ContinueRetro-PS1-pcsx-redux-2a36099dc-linux-x86_64.tar.gz
-          cat recovery/pcsx/UPSTREAM_ZIP_SHA256.txt
-          cat recovery/pcsx/UPSTREAM_APPIMAGE_SHA256.txt
-          cat recovery/pcsx/PCSX_RECOVERY_SHA256.txt
+          mkdir -p recovery/out
+          tar -C . -czf recovery/out/ContinueRetro-PS1-pcsx-redux-2a36099dc-linux-x86_64.tar.gz tools/installed/pcsx-redux
+          sha256sum recovery/out/ContinueRetro-PS1-pcsx-redux-2a36099dc-linux-x86_64.tar.gz > recovery/out/PCSX_RECOVERY_SHA256.txt
+          printf 'repo_commit=%s\nsource_ref=%s\n' "$GITHUB_SHA" "$PCSX_REDUX_REF" > recovery/out/PCSX_RECOVERY_SOURCE.txt
+          cat recovery/out/PCSX_RECOVERY_SHA256.txt
 
-      - name: Upload PCSX-only recovery artifact
+      - name: Upload PCSX-Redux recovery artifact
         uses: actions/upload-artifact@v4
         with:
           name: ContinueRetro-PS1-pcsx-redux-2a36099dc-linux-x86_64
-          path: recovery/pcsx/
+          path: recovery/out/
           compression-level: 0
           retention-days: 30
           if-no-files-found: error
