@@ -1,0 +1,66 @@
+name: Build portable LLVM recovery bundle
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/llvm-recovery.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  linux-x86_64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download pinned LLVM 17.0.6
+        run: |
+          set -euxo pipefail
+          mkdir -p recovery tools/installed/llvm-17.0.6
+          URL='https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/clang+llvm-17.0.6-x86_64-linux-gnu-ubuntu-22.04.tar.xz'
+          FILE='recovery/clang+llvm-17.0.6-x86_64-linux-gnu-ubuntu-22.04.tar.xz'
+          curl -L --fail --retry 3 -o "$FILE" "$URL"
+          echo '884ee67d647d77e58740c1e645649e29ae9e8a6fe87c1376be0f3a30f3cc9ab3  recovery/clang+llvm-17.0.6-x86_64-linux-gnu-ubuntu-22.04.tar.xz' | sha256sum -c -
+
+      - name: Extract portable PS1 compiler subset
+        run: |
+          set -euxo pipefail
+          ARC='recovery/clang+llvm-17.0.6-x86_64-linux-gnu-ubuntu-22.04.tar.xz'
+          TOP='clang+llvm-17.0.6-x86_64-linux-gnu-ubuntu-22.04'
+          DEST='tools/installed/llvm-17.0.6'
+          tar -xJf "$ARC" --strip-components=1 -C "$DEST" \
+            "$TOP/bin/clang" \
+            "$TOP/bin/ld.lld" \
+            "$TOP/bin/llvm-objcopy" \
+            "$TOP/bin/llvm-objdump" \
+            "$TOP/lib/clang/17/include"
+          "$DEST/bin/clang" --version
+          "$DEST/bin/ld.lld" --version
+          "$DEST/bin/llvm-objcopy" --version
+          "$DEST/bin/llvm-objdump" --version
+          cat > "$DEST/RECOVERY_SOURCE.txt" <<'EOF'
+          version=17.0.6
+          archive_sha256=884ee67d647d77e58740c1e645649e29ae9e8a6fe87c1376be0f3a30f3cc9ab3
+          source=https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/clang+llvm-17.0.6-x86_64-linux-gnu-ubuntu-22.04.tar.xz
+          EOF
+
+      - name: Package LLVM recovery bundle
+        run: |
+          set -euxo pipefail
+          tar -C . -czf recovery/ContinueRetro-PS1-llvm-17.0.6-linux-x86_64.tar.gz tools/installed/llvm-17.0.6
+          sha256sum recovery/ContinueRetro-PS1-llvm-17.0.6-linux-x86_64.tar.gz > recovery/LLVM_RECOVERY_SHA256.txt
+          cat recovery/LLVM_RECOVERY_SHA256.txt
+
+      - name: Upload LLVM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ContinueRetro-PS1-llvm-17.0.6-linux-x86_64
+          path: |
+            recovery/ContinueRetro-PS1-llvm-17.0.6-linux-x86_64.tar.gz
+            recovery/LLVM_RECOVERY_SHA256.txt
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
