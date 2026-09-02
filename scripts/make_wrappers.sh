@@ -43,37 +43,43 @@ W6
 cat > "$BIN/ps1-mips-cc" <<'WM1'
 #!/usr/bin/env bash
 set -euo pipefail
-C="$(command -v clang || true)"; [ -n "$C" ] || { echo 'clang missing; run ./scripts/bootstrap.sh' >&2; exit 127; }
-exec "$C" --target=mipsel-none-elf -march=mips1 -mabi=32 -msoft-float -mno-abicalls -ffreestanding -fno-pic -G0 "$@"
+R="$(cd "$(dirname "$0")/../.." && pwd)"; L="$R/tools/installed/llvm-17.0.6"; C="$L/bin/clang"; RES="$L/lib/clang/17"
+[ -x "$C" ] || { echo 'portable LLVM clang 17.0.6 missing; restore the LLVM recovery artifact' >&2; exit 127; }
+[ -d "$RES/include" ] || { echo 'portable LLVM resource headers missing' >&2; exit 127; }
+exec "$C" -resource-dir "$RES" --target=mipsel-none-elf -march=mips1 -mabi=32 -msoft-float -mno-abicalls -ffreestanding -fno-pic -G0 "$@"
 WM1
 cat > "$BIN/ps1-mips-as" <<'WM2'
 #!/usr/bin/env bash
 set -euo pipefail
-C="$(command -v clang || true)"; [ -n "$C" ] || { echo 'clang missing' >&2; exit 127; }
+R="$(cd "$(dirname "$0")/../.." && pwd)"; C="$R/tools/installed/llvm-17.0.6/bin/clang"
+[ -x "$C" ] || { echo 'portable LLVM clang 17.0.6 missing' >&2; exit 127; }
 exec "$C" --target=mipsel-none-elf -march=mips1 -mabi=32 -msoft-float -mno-abicalls -fno-pic -G0 -x assembler -c "$@"
 WM2
 cat > "$BIN/ps1-mips-ld" <<'WM3'
 #!/usr/bin/env bash
 set -euo pipefail
-L="$(command -v ld.lld || true)"; [ -n "$L" ] || { echo 'ld.lld missing' >&2; exit 127; }
+R="$(cd "$(dirname "$0")/../.." && pwd)"; L="$R/tools/installed/llvm-17.0.6/bin/ld.lld"
+[ -x "$L" ] || { echo 'portable LLVM ld.lld 17.0.6 missing' >&2; exit 127; }
 exec "$L" -m elf32ltsmip "$@"
 WM3
 cat > "$BIN/ps1-mips-objcopy" <<'WM4'
 #!/usr/bin/env bash
 set -euo pipefail
-O="$(command -v llvm-objcopy || true)"; [ -n "$O" ] || { echo 'llvm-objcopy missing' >&2; exit 127; }
+R="$(cd "$(dirname "$0")/../.." && pwd)"; O="$R/tools/installed/llvm-17.0.6/bin/llvm-objcopy"
+[ -x "$O" ] || { echo 'portable LLVM llvm-objcopy 17.0.6 missing' >&2; exit 127; }
 exec "$O" "$@"
 WM4
 cat > "$BIN/ps1-mips-objdump" <<'WM5'
 #!/usr/bin/env bash
 set -euo pipefail
-O="$(command -v llvm-objdump || true)"; [ -n "$O" ] || { echo 'llvm-objdump missing' >&2; exit 127; }
+R="$(cd "$(dirname "$0")/../.." && pwd)"; O="$R/tools/installed/llvm-17.0.6/bin/llvm-objdump"
+[ -x "$O" ] || { echo 'portable LLVM llvm-objdump 17.0.6 missing' >&2; exit 127; }
 exec "$O" "$@"
 WM5
 cat > "$BIN/xdelta3" <<'W7'
 #!/usr/bin/env bash
 set -euo pipefail
 R="$(cd "$(dirname "$0")/../.." && pwd)"; X="$R/tools/installed/xdelta3/xdelta3"
-[ -x "$X" ] || { echo 'xdelta3 missing; run bootstrap on a networked machine or provide/build it' >&2; exit 127; }; exec "$X" "$@"
+[ -x "$X" ] || { echo 'xdelta3 missing; restore the recovery artifact or run bootstrap on a networked machine' >&2; exit 127; }; exec "$X" "$@"
 W7
 chmod +x "$BIN"/mkpsxiso "$BIN"/dumpsxiso "$BIN"/jpsxdec "$BIN"/ghidra-headless "$BIN"/duckstation "$BIN"/pcsx-redux "$BIN"/xdelta3 "$BIN"/ps1-mips-cc "$BIN"/ps1-mips-as "$BIN"/ps1-mips-ld "$BIN"/ps1-mips-objcopy "$BIN"/ps1-mips-objdump
