@@ -33,10 +33,17 @@ jobs:
           DEST='tools/installed/llvm-17.0.6'
           tar -xJf "$ARC" --strip-components=1 -C "$DEST" \
             "$TOP/bin/clang" \
+            "$TOP/bin/clang-17" \
             "$TOP/bin/ld.lld" \
+            "$TOP/bin/lld" \
             "$TOP/bin/llvm-objcopy" \
             "$TOP/bin/llvm-objdump" \
             "$TOP/lib/clang/17/include"
+          find "$DEST/bin" -maxdepth 1 -type l -o -type f | sort
+          test -x "$DEST/bin/clang"
+          test -x "$DEST/bin/ld.lld"
+          test -x "$DEST/bin/llvm-objcopy"
+          test -x "$DEST/bin/llvm-objdump"
           "$DEST/bin/clang" --version
           "$DEST/bin/ld.lld" --version
           "$DEST/bin/llvm-objcopy" --version
