@@ -1,0 +1,140 @@
+name: Validate portable toolchain recovery
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/toolchain-doctor-validation.yml'
+      - 'scripts/bootstrap.sh'
+      - 'scripts/doctor.sh'
+      - 'scripts/verify_toolchain.sh'
+      - 'scripts/verify_mips_toolchain.sh'
+      - 'scripts/make_wrappers.sh'
+      - 'tools/locks/toolchain.lock.tsv'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  clean-runtime-doctor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download core recovery part 00
+        uses: actions/download-artifact@v4
+        with:
+          name: ContinueRetro-PS1-core-linux-x86_64-part-00
+          path: recovery/download/core00
+          github-token: ${{ github.token }}
+          run-id: 33650520580
+
+      - name: Download core recovery part 01
+        uses: actions/download-artifact@v4
+        with:
+          name: ContinueRetro-PS1-core-linux-x86_64-part-01
+          path: recovery/download/core01
+          github-token: ${{ github.token }}
+          run-id: 33650520580
+
+      - name: Download core recovery metadata
+        uses: actions/download-artifact@v4
+        with:
+          name: ContinueRetro-PS1-core-linux-x86_64-metadata
+          path: recovery/download/coremeta
+          github-token: ${{ github.token }}
+          run-id: 33650520580
+
+      - name: Download portable LLVM recovery
+        uses: actions/download-artifact@v4
+        with:
+          name: ContinueRetro-PS1-llvm-17.0.6-linux-x86_64
+          path: recovery/download/llvm
+          github-token: ${{ github.token }}
+          run-id: 33649467134
+
+      - name: Download exact PCSX-Redux recovery
+        uses: actions/download-artifact@v4
+        with:
+          name: ContinueRetro-PS1-pcsx-redux-2a36099dc-linux-x86_64
+          path: recovery/download/pcsx
+          github-token: ${{ github.token }}
+          run-id: 33653525132
+
+      - name: Verify and restore recovery bundles
+        run: |
+          set -euxo pipefail
+          export PATH="$PWD/tools/bin:/usr/bin:/bin"
+          test "$(command -v bash)" = /usr/bin/bash
+          test "$(command -v python3)" = /usr/bin/python3
+          test "$(command -v git)" = /usr/bin/git
+
+          CORE00='recovery/download/core00/core.part-00'
+          CORE01='recovery/download/core01/core.part-01'
+          echo '810d7a806acbaf6b42afd432d4431b646bfdc9c94fafe0acd9200ec4fb88bfe2  recovery/download/core00/core.part-00' | sha256sum -c -
+          echo '3aaa49f0e717a95bb6af7e1bbed73ef10fe004396306124e9f0778dea760b76a  recovery/download/core01/core.part-01' | sha256sum -c -
+          cat "$CORE00" "$CORE01" > recovery/ContinueRetro-PS1-core-linux-x86_64.tar.gz
+          echo '7187ce15f58cbdbe3cc78b8777164924aee95d8e8559059a789dc3459909306f  recovery/ContinueRetro-PS1-core-linux-x86_64.tar.gz' | sha256sum -c -
+          tar -xzf recovery/ContinueRetro-PS1-core-linux-x86_64.tar.gz -C .
+
+          LLVM_TAR="$(find recovery/download/llvm -type f -name 'ContinueRetro-PS1-llvm-17.0.6-linux-x86_64.tar.gz' | head -1)"
+          test -n "$LLVM_TAR"
+          echo "5d7c3c1848fac0e0ecaa9fa568acae7f13918de97fb0824235205bb64d4a9b61  $LLVM_TAR" | sha256sum -c -
+          tar -xzf "$LLVM_TAR" -C .
+
+          PCSX_TAR="$(find recovery/download/pcsx -type f -name 'ContinueRetro-PS1-pcsx-redux-2a36099dc-linux-x86_64.tar.gz' | head -1)"
+          test -n "$PCSX_TAR"
+          echo "8f803d187af87d0d10a0d8a2c9b288184a63779c4503b82a1cb2f867be99cffc  $PCSX_TAR" | sha256sum -c -
+          tar -xzf "$PCSX_TAR" -C .
+
+          test -x tools/installed/ghidra/ghidra_12.1.3_PUBLIC/support/analyzeHeadless
+          test -x tools/installed/mkpsxiso/mkpsxiso-2.30-Linux/bin/mkpsxiso
+          test -x tools/installed/mkpsxiso/mkpsxiso-2.30-Linux/bin/dumpsxiso
+          test -f tools/installed/jpsxdec/jpsxdec_v2.1-beta/jpsxdec.jar
+          test -x tools/installed/duckstation/squashfs-root/AppRun
+          test -x tools/installed/xdelta3/xdelta3
+          test -x tools/installed/llvm-17.0.6/bin/clang
+          test -x tools/installed/pcsx-redux/squashfs-root/AppRun
+
+      - name: Bootstrap fresh runtime without forbidden project paths
+        run: |
+          set -o pipefail
+          export PATH="$PWD/tools/bin:/usr/bin:/bin"
+          ./scripts/bootstrap.sh 2>&1 | tee recovery/BOOTSTRAP.log
+
+      - name: Run toolchain-only doctor gate
+        run: |
+          set -euxo pipefail
+          export PATH="$PWD/tools/bin:/usr/bin:/bin"
+          ./scripts/doctor.sh --toolchain-only 2>&1 | tee recovery/DOCTOR_TOOLCHAIN_ONLY.log
+          grep -Fx 'READY: PS1 localization toolchain healthy.' recovery/DOCTOR_TOOLCHAIN_ONLY.log
+          if grep -E 'FORBID.*(/tmp|/usr/local)' recovery/DOCTOR_TOOLCHAIN_ONLY.log; then
+            echo 'Forbidden dependency path detected.' >&2
+            exit 1
+          fi
+          {
+            echo 'core_run=33650520580'
+            echo 'core_tar_sha256=7187ce15f58cbdbe3cc78b8777164924aee95d8e8559059a789dc3459909306f'
+            echo 'llvm_run=33649467134'
+            echo 'llvm_tar_sha256=5d7c3c1848fac0e0ecaa9fa568acae7f13918de97fb0824235205bb64d4a9b61'
+            echo 'pcsx_run=33653525132'
+            echo 'pcsx_tar_sha256=8f803d187af87d0d10a0d8a2c9b288184a63779c4503b82a1cb2f867be99cffc'
+            echo 'pcsx_source_ref=2a36099dc24c5a746854e3de8359c40e5af21c10'
+            echo 'pcsx_appdistrib_build_id=303'
+          } > recovery/DOCTOR_RECOVERY_SOURCES.txt
+          sha256sum recovery/BOOTSTRAP.log recovery/DOCTOR_TOOLCHAIN_ONLY.log recovery/DOCTOR_RECOVERY_SOURCES.txt > recovery/DOCTOR_EVIDENCE_SHA256.txt
+          cat recovery/DOCTOR_EVIDENCE_SHA256.txt
+
+      - name: Upload doctor evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ContinueRetro-PS1-toolchain-doctor-evidence
+          path: |
+            recovery/BOOTSTRAP.log
+            recovery/DOCTOR_TOOLCHAIN_ONLY.log
+            recovery/DOCTOR_RECOVERY_SOURCES.txt
+            recovery/DOCTOR_EVIDENCE_SHA256.txt
+          retention-days: 30
+          if-no-files-found: error
