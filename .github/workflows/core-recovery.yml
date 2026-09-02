@@ -1,0 +1,59 @@
+name: Build core portable toolchain recovery bundle
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/core-recovery.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  linux-x86_64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore locked core tools
+        env:
+          CR_SKIP_SYSTEM_DEPS: '1'
+        run: |
+          set -euxo pipefail
+          ./scripts/bootstrap.sh
+          test -x tools/installed/ghidra/ghidra_12.1.3_PUBLIC/support/analyzeHeadless
+          test -x tools/installed/mkpsxiso/mkpsxiso-2.30-Linux/bin/mkpsxiso
+          test -x tools/installed/mkpsxiso/mkpsxiso-2.30-Linux/bin/dumpsxiso
+          test -f tools/installed/jpsxdec/jpsxdec_v2.1-beta/jpsxdec.jar
+          test -x tools/installed/duckstation/squashfs-root/AppRun
+          test -x tools/installed/xdelta3/xdelta3
+
+      - name: Package core recovery bundle
+        run: |
+          set -euxo pipefail
+          mkdir -p recovery/stage/tools/installed
+          for d in ghidra mkpsxiso jpsxdec duckstation xdelta3; do
+            cp -a "tools/installed/$d" recovery/stage/tools/installed/
+          done
+          {
+            echo 'ContinueRetro-PS1 core portable recovery bundle'
+            echo 'platform=linux-x86_64'
+            echo "repo_commit=${GITHUB_SHA}"
+            find recovery/stage/tools/installed -type f -print0 | sort -z | xargs -0 sha256sum
+          } > recovery/CORE_RECOVERY_MANIFEST.txt
+          tar -C recovery/stage -czf recovery/ContinueRetro-PS1-core-linux-x86_64.tar.gz tools/installed
+          sha256sum recovery/ContinueRetro-PS1-core-linux-x86_64.tar.gz > recovery/CORE_RECOVERY_SHA256.txt
+          cat recovery/CORE_RECOVERY_SHA256.txt
+
+      - name: Upload core recovery artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ContinueRetro-PS1-core-linux-x86_64
+          path: |
+            recovery/ContinueRetro-PS1-core-linux-x86_64.tar.gz
+            recovery/CORE_RECOVERY_SHA256.txt
+            recovery/CORE_RECOVERY_MANIFEST.txt
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
