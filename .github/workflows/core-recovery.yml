@@ -16,6 +16,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Seed locked cache with resilient downloads
+        run: |
+          set -euxo pipefail
+          mkdir -p tools/cache
+          fetch() {
+            local url="$1" out="$2" sha="$3"
+            curl -L --fail --retry 8 --retry-all-errors --retry-delay 2 -o "$out.part" "$url"
+            mv "$out.part" "$out"
+            echo "$sha  $out" | sha256sum -c -
+          }
+          fetch \
+            'https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.1.3_build/ghidra_12.1.3_PUBLIC_20260817.zip' \
+            tools/cache/ghidra_12.1.3_PUBLIC_20260817.zip \
+            93a5d11a9ad510622acaaf908c556a7b9b764d338e78a7567f3689bf5081fd54
+          fetch \
+            'https://github.com/Lameguy64/mkpsxiso/releases/download/v2.30/mkpsxiso-2.30-Linux.zip' \
+            tools/cache/mkpsxiso-2.30-Linux.zip \
+            8e387e6db51dee3eb7cb08f4d59293a24c48f58bd541631acf9301d78015a1fc
+          fetch \
+            'https://github.com/m35/jpsxdec/releases/download/v2.1/jpsxdec_v2.1-beta.zip' \
+            tools/cache/jpsxdec_v2.1-beta.zip \
+            e11787a2e05b6a4b6ee07972439e50da9e6798f0ca505e748f4969b3d91cd45b
+          fetch \
+            'https://github.com/stenzek/duckstation/releases/download/latest/DuckStation-x64.AppImage' \
+            tools/cache/DuckStation-x64.AppImage \
+            c5c8a9de4dfc10e794137dcb8bab9760ca578df2aa7be8c1215171bebbba5965
+          fetch \
+            'https://github.com/jmacd/xdelta/releases/download/v3.2.0/xdelta3-3.2.0-linux-x86_64.tar.gz' \
+            tools/cache/xdelta3-3.2.0-linux-x86_64.tar.gz \
+            480295c7a41fea6503659f19ddc61676c0df4834e2292846ba97de30c68c2397
+
       - name: Restore locked core tools
         env:
           CR_SKIP_SYSTEM_DEPS: '1'
