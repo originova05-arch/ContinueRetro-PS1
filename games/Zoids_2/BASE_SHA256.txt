@@ -1,0 +1,6 @@
+4f41fd9dc2e7f2ae2b336f9b79f7ac0311a50a651579a588923ba3976c982ceb  Zoids 2 - Heric Kyouwakoku vs. Guylos Teikoku (Japan).bin
+2ff6ee3373db49bd53ebee58720548153f99fa6d6e15762ad73caacdec470546  Zoids 2 - Heric Kyouwakoku vs. Guylos Teikoku (Japan).cue
+53075447b0b9773736f41c70864294da6afbbd70b57945676fced57ada8f2fe3  extracted/SLPS_033.89
+410774b9b20cbc1b1b8c1c4242d054c6eaa81a7302823981e24e547527668de7  extracted/NEW/BIN/TITLE.BIN
+35f04030836fa409bf47570f5b6f635b5ade61053f5bf0d9ff7c869bbd0b8043  extracted/NEW/BIN/FACT.BIN
+5df523486b2a7ba100ad99a28ae59a3900e0218e3d47c5d8c6e699f2d4c357f6  extracted/NEW/BIN/ZOIDS_PS.DAT

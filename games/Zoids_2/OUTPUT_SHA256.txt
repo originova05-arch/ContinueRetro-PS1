@@ -1,0 +1,3 @@
+# build_kind=unmodified-roundtrip-baseline
+4f41fd9dc2e7f2ae2b336f9b79f7ac0311a50a651579a588923ba3976c982ceb  ZOIDS2_THAI_BUILD.bin
+dcba2eff32c8520b400aeda72add53cc1f9b4248bb1c9af83d8718f9aea0e29a  ZOIDS2_THAI_BUILD.cue

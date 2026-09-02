@@ -1,0 +1,17 @@
+PRIVATE/**
+!PRIVATE/README.md
+tools/cache/**
+tools/installed/**
+!tools/cache/.gitkeep
+!tools/installed/.gitkeep
+tools/src/ghidra/
+tools/src/mkpsxiso/
+tools/src/duckstation/
+tools/src/pcsx-redux/
+tools/src/xdelta/
+games/*/work/
+games/*/output/
+*.log
+.DS_Store
+__pycache__/
+tools/build/
