@@ -29,7 +29,7 @@ jobs:
           test -x tools/installed/duckstation/squashfs-root/AppRun
           test -x tools/installed/xdelta3/xdelta3
 
-      - name: Package core recovery bundle
+      - name: Package and split core recovery bundle
         run: |
           set -euxo pipefail
           mkdir -p recovery/stage/tools/installed
@@ -44,15 +44,39 @@ jobs:
           } > recovery/CORE_RECOVERY_MANIFEST.txt
           tar -C recovery/stage -czf recovery/ContinueRetro-PS1-core-linux-x86_64.tar.gz tools/installed
           sha256sum recovery/ContinueRetro-PS1-core-linux-x86_64.tar.gz > recovery/CORE_RECOVERY_SHA256.txt
+          split -b 400M -d -a 2 recovery/ContinueRetro-PS1-core-linux-x86_64.tar.gz recovery/core.part-
+          test -f recovery/core.part-00
+          test -f recovery/core.part-01
+          test ! -f recovery/core.part-02
+          sha256sum recovery/core.part-* > recovery/CORE_PARTS_SHA256.txt
           cat recovery/CORE_RECOVERY_SHA256.txt
+          cat recovery/CORE_PARTS_SHA256.txt
 
-      - name: Upload core recovery artifact
+      - name: Upload core part 00
         uses: actions/upload-artifact@v4
         with:
-          name: ContinueRetro-PS1-core-linux-x86_64
+          name: ContinueRetro-PS1-core-linux-x86_64-part-00
+          path: recovery/core.part-00
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload core part 01
+        uses: actions/upload-artifact@v4
+        with:
+          name: ContinueRetro-PS1-core-linux-x86_64-part-01
+          path: recovery/core.part-01
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Upload core recovery metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: ContinueRetro-PS1-core-linux-x86_64-metadata
           path: |
-            recovery/ContinueRetro-PS1-core-linux-x86_64.tar.gz
             recovery/CORE_RECOVERY_SHA256.txt
+            recovery/CORE_PARTS_SHA256.txt
             recovery/CORE_RECOVERY_MANIFEST.txt
           compression-level: 0
           retention-days: 30
