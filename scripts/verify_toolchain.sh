@@ -33,14 +33,23 @@ UTIL="$TOOLS/src/continue-retro-ps1-utils"
 UTIL_OK=1
 for u in raw2352.py disc_manifest.py psxexe_info.py sjis_scan.py; do [ -f "$UTIL/$u" ] || UTIL_OK=0; done
 if [ "$UTIL_OK" -eq 1 ]; then printf '%-18s %-9s %-48s %s\n' PS1-Utils OK "$UTIL" 'repo utilities'; else printf '%-18s %-9s %-48s %s\n' PS1-Utils MISSING "$UTIL" '-'; FAIL=1; fi
+LLVM="$INSTALLED/llvm-17.0.6"
+LLVM_OK=1
+for p in "$LLVM/bin/clang" "$LLVM/bin/ld.lld" "$LLVM/bin/llvm-objcopy" "$LLVM/bin/llvm-objdump" "$LLVM/lib/clang/17/include"; do [ -e "$p" ] || LLVM_OK=0; done
+if [ "$LLVM_OK" -eq 1 ]; then printf '%-18s %-9s %-48s %s\n' LLVM-Portable OK "$LLVM" "$($LLVM/bin/clang --version 2>/dev/null | head -1)"; else printf '%-18s %-9s %-48s %s\n' LLVM-Portable MISSING "$LLVM" '17.0.6 recovery artifact required'; FAIL=1; fi
 FF="$(command -v ffmpeg 2>/dev/null || true)"
 if [ -n "$FF" ]; then printf '%-18s %-9s %-48s %s\n' FFmpeg OK "$FF" "$($FF -version 2>/dev/null | head -1)"; else printf '%-18s %-9s %-48s %s\n' FFmpeg MISSING '-' '-'; FAIL=1; fi
 IM="$(command -v magick 2>/dev/null || command -v convert 2>/dev/null || true)"
 if [ -n "$IM" ]; then printf '%-18s %-9s %-48s %s\n' ImageMagick OK "$IM" "$($IM -version 2>/dev/null | head -1)"; else printf '%-18s %-9s %-48s %s\n' ImageMagick MISSING '-' '-'; FAIL=1; fi
 mkdir -p "$TOOLS/build"
 MIPS_LOG="$TOOLS/build/mips_verify.$$.log"
-if "$PROJECT_ROOT/scripts/verify_mips_toolchain.sh" >"$MIPS_LOG" 2>&1; then printf '%-18s %-9s %-48s %s\n' PS1-MIPS-Clang OK "$BIN/ps1-mips-cc" "$(command -v clang | xargs -r basename) MIPS-I target"; else printf '%-18s %-9s %-48s %s\n' PS1-MIPS-Clang BROKEN "$BIN/ps1-mips-cc" "$(tr '\n' ' ' <"$MIPS_LOG" 2>/dev/null || true)"; FAIL=1; fi
+if [ "$LLVM_OK" -eq 1 ] && "$PROJECT_ROOT/scripts/verify_mips_toolchain.sh" >"$MIPS_LOG" 2>&1; then printf '%-18s %-9s %-48s %s\n' PS1-MIPS-Clang OK "$BIN/ps1-mips-cc" 'portable LLVM 17.0.6 MIPS-I target'; else printf '%-18s %-9s %-48s %s\n' PS1-MIPS-Clang BROKEN "$BIN/ps1-mips-cc" "$(tr '\n' ' ' <"$MIPS_LOG" 2>/dev/null || true)"; FAIL=1; fi
 rm -f "$MIPS_LOG"
-printf '\nSystem dependencies:\n'
-for c in bash python3 git cmake ninja java unzip clang ld.lld llvm-objcopy llvm-objdump; do if command -v "$c" >/dev/null 2>&1; then printf '  OK      %-12s %s\n' "$c" "$(command -v "$c")"; else printf '  MISSING %-12s\n' "$c"; FAIL=1; fi; done
+printf '\nSystem dependencies (must not resolve under /tmp or /usr/local):\n'
+for c in bash python3 git cmake ninja java unzip; do
+  PTH="$(command -v "$c" 2>/dev/null || true)"
+  if [ -z "$PTH" ]; then printf '  MISSING %-12s\n' "$c"; FAIL=1
+  elif [[ "$PTH" == /tmp/* || "$PTH" == /usr/local/* ]]; then printf '  FORBID  %-12s %s\n' "$c" "$PTH"; FAIL=1
+  else printf '  OK      %-12s %s\n' "$c" "$PTH"; fi
+done
 exit $FAIL
