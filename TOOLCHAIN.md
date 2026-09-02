@@ -4,18 +4,40 @@ Toolchain lock date: **2026-09-02 (Asia/Bangkok)**. Exact machine-readable refs 
 
 | Program | Version/ref | Role | Portable path | Install/build | Dependencies | OS/architecture |
 |---|---|---|---|---|---|---|
-| Ghidra | 12.1.3 / `Ghidra_12.1.3_build` | MIPS/PS-X EXE reverse engineering; renderer/font/string analysis | `tools/installed/ghidra/ghidra_12.1.3_PUBLIC/` | `bootstrap.sh` extracts locked ZIP; exact source tag recorded | Java 21 | Java platforms; headless tested Linux x86_64 |
+| Ghidra | 12.1.3 / `Ghidra_12.1.3_build` | MIPS/PS-X EXE reverse engineering; renderer/font/string analysis | `tools/installed/ghidra/ghidra_12.1.3_PUBLIC/` | `bootstrap.sh` extracts locked ZIP; recovery artifact can restore installed tree | Java 21 | Java platforms; headless tested Linux x86_64 |
 | mkpsxiso | 2.30 | PS1 image rebuild, fixed LBA layout, LBA logs | `tools/installed/mkpsxiso/.../bin/mkpsxiso` | Locked Linux/Darwin ZIP; source tag `v2.30` | release-native libs | Linux x86_64 tested; Darwin package cached |
 | dumpsxiso | 2.30 | BIN/CUE extraction and XML/LBA generation | same package as mkpsxiso | same | same | Linux x86_64 tested |
 | jPSXdec | 2.1 beta | STR/XA/media/CD-sector inspection | `tools/installed/jpsxdec/jpsxdec_v2.1-beta/` | locked ZIP | Java | tested Java 21 |
-| DuckStation | 0.1-11826-gfe2306b1f; commit `fe2306b1f0f7...` | Runtime QA/screenshots/controller validation | `tools/installed/duckstation/` | exact AppImage cache preferred; exact source commit recorded | Linux display/Xvfb; software renderer recommended in this container | Linux x86_64 tested |
-| PCSX-Redux | commit `2a36099dc24c...` | Debugger/runtime/reverse engineering | `tools/installed/pcsx-redux/` | exact AppImage cache; exact source commit recorded | bundled native dependencies | Linux x86_64 tested |
-| xdelta3 | 3.2.0 / tag `v3.2.0` | User-distributable delta patch creation/application | `tools/installed/xdelta3/xdelta3` | locked Linux x86_64 tarball from `tools/cache/`; otherwise exact release download or pinned CMake source build | no runtime dependency for locked binary; CMake + C/C++ compiler for source build | Linux x86_64 release installed/tested; source ref also pinned for rebuild |
-| FFmpeg | 7.1.5 (runtime-tested) | Media inspection/transcode; XA/STR QA support; screenshot/video pipelines | system package; checked by `bootstrap.sh`/`doctor.sh` | Debian/Arch/Homebrew package install via `scripts/install_system_deps.sh` | codec libraries bundled by OS package | Linux x86_64 tested; macOS package recipe included |
-| ImageMagick | 7.1.2-1 (runtime-tested) | Bitmap/font atlas inspection, crop/montage/GIF/image QA | system package; checked by `bootstrap.sh`/`doctor.sh` | Debian/Arch/Homebrew package install via `scripts/install_system_deps.sh` | OS image libraries | Linux x86_64 tested; macOS package recipe included |
-| PS1 MIPS Clang/LLD wrappers | Clang/LLD 17 tested; MIPS-I target | Compile/link renderer hooks and small PS1 payloads for R3000A/MIPS-I | `tools/bin/ps1-mips-*`; smoke test in `tools/tests/` | bootstrap installs host Clang/LLD/LLVM tools when absent | clang, ld.lld, llvm-objcopy, llvm-objdump | Linux x86_64 tested; package recipes for macOS/Linux |
-| Continue Retro Thai Game FontKit | 1.2.1 | Thai glyph sources/profiles/placement/QA scripts | `tools/installed/fontkit/`; rebuild source/config under `tools/src/fontkit/` | user project asset + Python builders | Python requirements in kit | cross-platform Python; Zoids 2 target 16×13 |
+| DuckStation | 0.1-11826-gfe2306b1f; commit `fe2306b1f0f7...` | Runtime QA/screenshots/controller validation | `tools/installed/duckstation/` | exact AppImage or recovery artifact | Linux display/Xvfb; software renderer recommended in this container | Linux x86_64 tested |
+| PCSX-Redux | commit `2a36099dc24c...` | Debugger/runtime/reverse engineering | `tools/installed/pcsx-redux/` | exact cache when available; otherwise Actions recovery build from pinned source | bundled native dependencies | Linux x86_64 tested |
+| xdelta3 | 3.2.0 / tag `v3.2.0` | User-distributable delta patch creation/application | `tools/installed/xdelta3/xdelta3` | locked Linux x86_64 tarball; pinned CMake source fallback | no runtime dependency for locked binary | Linux x86_64 tested |
+| FFmpeg | 7.1.5 (runtime-tested) | Media inspection/transcode; XA/STR QA support; screenshot/video pipelines | system package | checked by bootstrap/doctor | codec libraries bundled by OS package | Linux x86_64 tested; macOS package recipe included |
+| ImageMagick | 7.1.2-1 (runtime-tested) | Bitmap/font atlas inspection, crop/montage/GIF/image QA | system package | checked by bootstrap/doctor | OS image libraries | Linux x86_64 tested; macOS package recipe included |
+| PS1 MIPS LLVM | LLVM/Clang 17.0.6 | Compile/link renderer hooks and PS1 payloads for R3000A/MIPS-I | `tools/installed/llvm-17.0.6/` and `tools/bin/ps1-mips-*` | pinned official LLVM archive restored by Actions recovery artifact | repository-local clang, ld.lld, llvm-objcopy, llvm-objdump | Linux x86_64 |
+| Continue Retro Thai Game FontKit | 1.2.1 | Thai glyph sources/profiles/placement/QA scripts | `tools/installed/fontkit/`; source/config under `tools/src/fontkit/` when available | user project asset + Python builders | Python requirements in kit | cross-platform Python; Zoids 2 target 16×13 |
 | ContinueRetro PS1 utils | repo version | Shift-JIS scan, raw 2352 helper, LBA map, PS-X EXE header inspection | `tools/src/continue-retro-ps1-utils/` | source tracked in repo | Python 3 | cross-platform Python; shell wrappers Unix-like |
+
+## Fresh-runtime recovery
+
+A new runtime must not depend on `/tmp`, `/usr/local`, or leftover project directories from another runtime. Restore the Linux recovery artifacts generated by:
+
+- `.github/workflows/toolchain-recovery.yml` → `ContinueRetro-PS1-toolchain-linux-x86_64`
+- `.github/workflows/llvm-recovery.yml` → `ContinueRetro-PS1-llvm-17.0.6-linux-x86_64`
+
+Extract both at the repository root so their `tools/installed/...` paths are restored. Restore the user-owned FontKit ZIP as `tools/cache/Continue_Retro_Thai_Game_FontKit_v1.2.1.zip`, then run:
+
+```bash
+./scripts/bootstrap.sh
+./scripts/doctor.sh --toolchain-only
+```
+
+Do not modify game resources unless the doctor ends with:
+
+```text
+READY: PS1 localization toolchain healthy.
+```
+
+`bootstrap.sh` reuses a valid restored DuckStation/PCSX-Redux installed tree instead of forcing a fresh network download.
 
 ## Use
 
@@ -27,11 +49,12 @@ jpsxdec -help
 ghidra-headless ...
 duckstation ...
 pcsx-redux ...
+./scripts/verify_mips_toolchain.sh
 ```
 
 ## Rebuildability
 
-`tools/cache/` and `tools/installed/` are a local offline convenience cache and are Git-ignored because several binaries are large. Their SHA-256 values and exact source refs are tracked. On a networked machine, cache the exact third-party source trees as well:
+`tools/cache/` and `tools/installed/` are local/offline caches and are Git-ignored because several binaries are large. Their versions, hashes, and exact source refs are tracked. On a networked machine, exact third-party source trees can additionally be cached with:
 
 ```bash
 CR_FETCH_SOURCES=1 ./scripts/bootstrap.sh
@@ -51,10 +74,12 @@ Game images/BIOS are deliberately kept under `PRIVATE/` and excluded from Git.
 
 The user-supplied FFmpeg/ImageMagick command notes are preserved unchanged at `docs/reference/ffmpeg-imagemagick.md`. They are a command reference, not installer binaries.
 
-## PS1 MIPS compiler smoke test
+## PS1 MIPS compiler
+
+The wrappers use **only** the repository-local LLVM 17.0.6 installation under `tools/installed/llvm-17.0.6/`. They target little-endian MIPS-I (`mipsel-none-elf`, `-march=mips1`, ABI32, soft-float), appropriate for PS1 R3000A hook/payload work.
 
 ```bash
 ./scripts/verify_mips_toolchain.sh
 ```
 
-The wrappers target little-endian MIPS-I (`mipsel-none-elf`, `-march=mips1`, ABI32, soft-float), appropriate for PS1 R3000A hook/payload work. GCC `mipsel-none-elf` remains optional for projects that specifically require the GNU toolchain.
+The toolchain-only doctor rejects required system dependencies that resolve under `/tmp` or `/usr/local`.
