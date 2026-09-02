@@ -1,0 +1,28 @@
+name: Inspect PCSX-Redux upstream published manifest
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/pcsx-appdistrib-inspect.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Fetch manifest
+        run: |
+          set -euxo pipefail
+          curl -L --fail --retry 5 --retry-all-errors \
+            'https://distrib.app/storage/manifests/pcsx-redux/dev-linux-x64/manifest.json' \
+            -o /home/runner/manifest.json
+          python3 - <<'PY'
+          import json
+          p='/home/runner/manifest.json'
+          d=json.load(open(p))
+          print(json.dumps(d, indent=2)[:30000])
+          PY
