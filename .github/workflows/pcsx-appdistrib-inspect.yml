@@ -12,17 +12,59 @@ permissions:
 jobs:
   inspect:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
-      - name: Fetch manifest
+      - name: Resolve exact pinned changeset
+        env:
+          TARGET: 2a36099dc24c5a746854e3de8359c40e5af21c10
+          BASE: https://distrib.app/storage/manifests/pcsx-redux/dev-linux-x64
         run: |
-          set -euxo pipefail
-          curl -L --fail --retry 5 --retry-all-errors \
-            'https://distrib.app/storage/manifests/pcsx-redux/dev-linux-x64/manifest.json' \
-            -o /home/runner/manifest.json
+          set -euo pipefail
+          curl -L --fail --retry 5 --retry-all-errors "$BASE/manifest.json" -o /home/runner/catalog.json
           python3 - <<'PY'
-          import json
-          p='/home/runner/manifest.json'
-          d=json.load(open(p))
-          print(json.dumps(d, indent=2)[:30000])
+          import json, os, subprocess, sys
+          target=os.environ['TARGET']
+          base=os.environ['BASE']
+          builds=json.load(open('/home/runner/catalog.json')).get('builds', [])
+          found=None
+          checked=0
+          for b in builds:
+              bid=b['id']
+              p=f'/home/runner/manifest-{bid}.json'
+              r=subprocess.run(['curl','-L','--silent','--show-error','--fail','--retry','4','--retry-all-errors',f'{base}/manifest-{bid}.json','-o',p])
+              if r.returncode:
+                  continue
+              checked += 1
+              try:
+                  d=json.load(open(p))
+              except Exception:
+                  continue
+              m=d.get('manifest', {})
+              changeset=m.get('changeset','')
+              if changeset == target:
+                  found={
+                      'build_id': bid,
+                      'catalog_createdAt': b.get('createdAt'),
+                      'changeset': changeset,
+                      'version': m.get('version'),
+                      'timestamp': m.get('timestamp'),
+                      'path': d.get('path'),
+                      'manifest': m,
+                  }
+                  break
+          print(f'checked_manifests={checked}')
+          if not found:
+              print('EXACT_CHANGESET_NOT_FOUND')
+              sys.exit(3)
+          print('EXACT_CHANGESET_FOUND')
+          print(json.dumps(found, indent=2, sort_keys=True))
+          open('/home/runner/exact.json','w').write(json.dumps(found, indent=2, sort_keys=True)+'\n')
           PY
+
+      - name: Upload exact-manifest evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: pcsx-redux-exact-appdistrib-manifest
+          path: /home/runner/exact.json
+          retention-days: 30
+          if-no-files-found: error
