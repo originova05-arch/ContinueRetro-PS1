@@ -81,7 +81,7 @@ jobs:
 
           LLVM_TAR="$(find recovery/download/llvm -type f -name 'ContinueRetro-PS1-llvm-17.0.6-linux-x86_64.tar.gz' | head -1)"
           test -n "$LLVM_TAR"
-          echo "5d7c3c1848fac0e0ecaa9fa568acae7f13918de97fb0824235205bb64d4a9b61  $LLVM_TAR" | sha256sum -c -
+          echo "5d7c3c1814fd8317a28ccb3d960601d074cc745a3d1824d80debdd283a4a9b61  $LLVM_TAR" | sha256sum -c -
           tar -xzf "$LLVM_TAR" -C .
 
           PCSX_TAR="$(find recovery/download/pcsx -type f -name 'ContinueRetro-PS1-pcsx-redux-2a36099dc-linux-x86_64.tar.gz' | head -1)"
@@ -118,7 +118,7 @@ jobs:
             echo 'core_run=33650520580'
             echo 'core_tar_sha256=7187ce15f58cbdbe3cc78b8777164924aee95d8e8559059a789dc3459909306f'
             echo 'llvm_run=33649467134'
-            echo 'llvm_tar_sha256=5d7c3c1848fac0e0ecaa9fa568acae7f13918de97fb0824235205bb64d4a9b61'
+            echo 'llvm_tar_sha256=5d7c3c1814fd8317a28ccb3d960601d074cc745a3d1824d80debdd283a4a9b61'
             echo 'pcsx_run=33653525132'
             echo 'pcsx_tar_sha256=8f803d187af87d0d10a0d8a2c9b288184a63779c4503b82a1cb2f867be99cffc'
             echo 'pcsx_source_ref=2a36099dc24c5a746854e3de8359c40e5af21c10'
