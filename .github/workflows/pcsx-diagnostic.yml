@@ -1,0 +1,61 @@
+name: Diagnose pinned PCSX-Redux build
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/pcsx-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clone exact PCSX-Redux source
+        run: |
+          set -euxo pipefail
+          rm -rf recovery/pcsx-src recovery/pcsx-build.log
+          mkdir -p recovery
+          git clone --recursive https://github.com/grumpycoders/pcsx-redux.git recovery/pcsx-src
+          git -C recovery/pcsx-src checkout 2a36099dc24c5a746854e3de8359c40e5af21c10
+          git -C recovery/pcsx-src submodule update --init --recursive
+          test "$(git -C recovery/pcsx-src rev-parse HEAD)" = 2a36099dc24c5a746854e3de8359c40e5af21c10
+
+      - name: Record build-container digest
+        run: |
+          set -euxo pipefail
+          docker pull ghcr.io/grumpycoders/pcsx-redux-build:latest >/dev/null
+          docker image inspect ghcr.io/grumpycoders/pcsx-redux-build:latest \
+            --format '{{index .RepoDigests 0}}' | tee recovery/pcsx-container-digest.txt
+
+      - name: Build AppImage and print concise failure tail
+        shell: bash
+        run: |
+          set +e
+          (
+            cd recovery/pcsx-src
+            ./dockermake.sh appimage
+          ) > recovery/pcsx-build.log 2>&1
+          rc=$?
+          printf 'PCSX_BUILD_RC=%s\n' "$rc"
+          printf '%s\n' '--- PCSX BUILD LOG TAIL ---'
+          tail -n 160 recovery/pcsx-build.log || true
+          printf '%s\n' '--- GENERATED FILES ---'
+          find recovery/pcsx-src -maxdepth 2 -type f \( -name '*.AppImage' -o -name 'pcsx-redux' \) -printf '%p %s bytes\n' | sort || true
+          exit "$rc"
+
+      - name: Upload diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pcsx-redux-build-diagnostic
+          path: |
+            recovery/pcsx-build.log
+            recovery/pcsx-container-digest.txt
+          retention-days: 7
+          if-no-files-found: warn
