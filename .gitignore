@@ -12,6 +12,9 @@ tools/src/pcsx-redux/
 tools/src/xdelta/
 games/*/work/
 games/*/output/
+WORKSPACE_META/RUNTIME_RECOVERY/
+.runtime/
+*.har
 *.log
 .DS_Store
 __pycache__/
