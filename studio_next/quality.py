@@ -211,7 +211,7 @@ def parse_review(payload: Mapping, expected: ReviewIdentity,
         raise InvalidReview("invalid suggested target")
     confidence = payload["review_confidence"]
     if confidence is not None and (type(confidence) not in (int, float) or
-            not math.isfinite(confidence) or not 0 <= confidence <= 1):
+            not 0 <= confidence <= 1 or not math.isfinite(confidence)):
         raise InvalidReview("invalid self-reported confidence")
     points = sum(x for x in ordered if x is not None)
     maximum = sum(w for x, w in zip(ordered, rubric.weights) if x is not None)
