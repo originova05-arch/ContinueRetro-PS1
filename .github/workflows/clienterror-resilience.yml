@@ -36,7 +36,7 @@ jobs:
           grep -F 'retrothai' scripts/backend_guard.sh
           grep -F 'recover --repo' scripts/backend_guard.sh
           grep -F 'guard --repo' scripts/backend_guard.sh
-          grep -F 'Retry is disabled by default' docs/CLIENTERROR_RECOVERY.md
+          grep -F 'retry is disabled by default' docs/CLIENTERROR_RECOVERY.md
           grep -F 'WATCHED_OUTPUT_CHANGED_REVIEW_REQUIRED' docs/CLIENTERROR_RECOVERY.md
       - name: Private-data exclusions
         shell: bash
