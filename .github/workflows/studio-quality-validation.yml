@@ -1,0 +1,61 @@
+name: Studio quality core (isolated; no game validation)
+
+on:
+  push:
+    branches: ['studio/london-quality-checkpoint-20260908']
+    paths:
+      - 'studio_next/**'
+      - '.github/workflows/studio-quality-validation.yml'
+  pull_request:
+    paths:
+      - 'studio_next/**'
+      - '.github/workflows/studio-quality-validation.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: studio-quality-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  unit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Fetch exact commit from this public source-only repository
+        env:
+          REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}.git
+          COMMIT_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init work
+          git -C work remote add origin "$REPOSITORY_URL"
+          git -C work fetch --depth=1 origin "$COMMIT_SHA"
+          git -C work checkout --detach FETCH_HEAD
+          test "$(git -C work rev-parse HEAD)" = "$COMMIT_SHA"
+      - name: Reject private game and font assets in this change directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd work
+          test -z "$(git ls-files studio_next | grep -Ei '\.(bin|cue|iso|rom|ttf|otf|woff2?|gguf|safetensors|har)$' || true)"
+      - name: Compile independent core
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd work
+          python3 --version
+          python3 -m py_compile studio_next/quality.py studio_next/test_quality.py
+      - name: Run deterministic policy tests (not live model or London tests)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd work
+          python3 -m unittest discover -s studio_next -p 'test_*.py' -v
+      - name: State validation boundary
+        if: always()
+        shell: bash
+        run: |
+          printf '%s\n' 'This run does NOT validate London extraction/repacking, Ollama inference, Mac integration, UI, or model training.' >> "$GITHUB_STEP_SUMMARY"
