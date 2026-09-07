@@ -10,6 +10,7 @@ Before changing any game data, read:
 2. `README.md`
 3. `TOOLCHAIN.md`
 4. the target game's `CHECKPOINT_LATEST.md` and the checkpoint it references
+5. `WORKSPACE_META/RUNTIME_RECOVERY/RESUME_PACKET.md` when present
 
 If a checkpoint pointer is broken or missing, stop game modification and reconstruct the last confirmed state from tracked hashes, README/reference/runtime/rollback records. Record the repair in a new checkpoint.
 
@@ -47,6 +48,7 @@ Never commit or push:
 - original or rebuilt BIN/CUE images
 - `PRIVATE/`
 - ordinary `tools/cache/` or `tools/installed/` binary caches
+- browser HAR files, cookies, tokens, secrets, or raw ClientError diagnostics containing headers
 
 Only push project-owned scripts/source/config/docs/checkpoints/hashes and other reproducibility metadata that contain no private game bytes.
 
@@ -77,3 +79,39 @@ For every retained milestone record at least:
 - next action
 
 Update the target game's `CHECKPOINT_LATEST.md` to point to the retained checkpoint.
+
+## 6. ClientError and interrupted-session resilience
+
+Authoritative state must never exist only in chat history. Before a long or externally dependent action, and after every retained result, persist state to project/repository files using atomic writes.
+
+Use the backend guard:
+
+```bash
+bash ./scripts/backend_guard.sh
+```
+
+For a local command that may take time or produce retained artifacts, prefer:
+
+```bash
+bash ./scripts/backend_guard.sh run -- <command> [args...]
+```
+
+The guard creates before/after snapshots, a sanitized journal, a resume packet, and a metadata-only recovery bundle. Retry is disabled by default. Enable it only for a proven read-only command or while fingerprinting every retained output; deterministic failures are never retried automatically.
+
+After `ClientError`, timeout, lost WebSocket, runtime restart, or uncertain completion:
+
+1. do not immediately repeat an action that may have written files;
+2. run `bash ./scripts/backend_guard.sh`;
+3. inspect existing output paths and hashes against the resume packet and latest checkpoint;
+4. classify the interrupted action as completed, failed, or unknown;
+5. execute only one safe next transition and checkpoint it.
+
+Do not reset, clean, overwrite, or regenerate authoritative files merely to make the runtime appear consistent. Preserve unknown outputs until their provenance is resolved.
+
+## 7. Concurrency and retry policy
+
+Only one guarded retained-write command may run per repository/runtime state directory. A live lock blocks a second guarded command regardless of age. A different-host lock on shared storage remains blocking until its stale window expires.
+
+Automatic retry is opt-in and limited to transient classes such as ClientError, timeout, connection reset, HTTP 429, and HTTP 5xx. It requires either `--read-only` or at least one `--watch PATH`. Any watched output creation/change blocks retry with `WATCHED_OUTPUT_CHANGED_REVIEW_REQUIRED` and requires provenance review.
+
+Syntax errors, failed assertions, hash mismatches, missing files, invalid pointers, wrong inputs, and failed QA gates are deterministic failures and must not be retried unchanged.
