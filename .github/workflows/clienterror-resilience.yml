@@ -1,0 +1,47 @@
+name: ClientError resilience integration
+
+on:
+  push:
+    paths:
+      - 'scripts/backend_guard.sh'
+      - 'docs/CLIENTERROR_RECOVERY.md'
+      - 'AGENTS.md'
+      - 'README.md'
+      - '.gitignore'
+      - '.github/workflows/clienterror-resilience.yml'
+  pull_request:
+    paths:
+      - 'scripts/backend_guard.sh'
+      - 'docs/CLIENTERROR_RECOVERY.md'
+      - 'AGENTS.md'
+      - 'README.md'
+      - '.gitignore'
+      - '.github/workflows/clienterror-resilience.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell syntax
+        run: bash -n scripts/backend_guard.sh
+      - name: Recovery contract markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'retrothai' scripts/backend_guard.sh
+          grep -F 'recover --repo' scripts/backend_guard.sh
+          grep -F 'guard --repo' scripts/backend_guard.sh
+          grep -F 'retry is disabled by default' docs/CLIENTERROR_RECOVERY.md
+          grep -F 'WATCHED_OUTPUT_CHANGED_REVIEW_REQUIRED' docs/CLIENTERROR_RECOVERY.md
+      - name: Private-data exclusions
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fx 'WORKSPACE_META/RUNTIME_RECOVERY/' .gitignore
+          grep -Fx '*.har' .gitignore
+          test -z "$(git ls-files 'PRIVATE/**' '*.bin' '*.cue' '*.iso' '*.har' | grep -v '^PRIVATE/README.md$' || true)"
