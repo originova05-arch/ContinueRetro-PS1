@@ -10,19 +10,16 @@ ESCAPE=re.compile(r'\\(?:n|r|t|x[0-9a-fA-F]{2})')
 
 
 def assess(s,r,*,encoder=None,metrics=None):
-    """No AI verdict contributes to these checks; does not read or patch the ROM.
+    """No AI verdict contributes to checks; no ROM is read or patched.
 
     Codec/advance settings are declarations, not proof that a game uses them.
-    The build adapter and runtime gates still own pointer/renderer validation.
+    Build adapters and runtime gates still own pointer/renderer validation.
     """
     adapter=s.settings(r['project_id'],'adapter',{}) or {}
     p=s.get_project(r['project_id'])
     if metrics is None:
         from app.translation import load_metrics
         metrics=load_metrics(s,p['selected_font_profile'])
-    if encoder is None:
-        from app.translation import encode_text
-        encoder=encode_text
     source,target=r['original_text'],r['translation'];checks=[]
     def add(name,state,message,severity='info',scope='text_only'):
         checks.append(dict(name=name,state=state,message=message,severity=severity,scope=scope))
@@ -43,6 +40,9 @@ def assess(s,r,*,encoder=None,metrics=None):
         add('encoding','NOT_EVALUATED','ยังไม่มี codec เกมที่อนุญาต ไม่ใช้ UTF-8 แทนรหัสเกม','warning','game_codec_missing')
     else:
         try:
+            if encoder is None:
+                from app.translation import encode_text
+                encoder=encode_text
             encoded=encoder(target,adapter)
             if not isinstance(encoded,bytes):raise ValueError('codec ไม่ได้คืน bytes')
             add('encoding','PASS','เข้ารหัสตาม codec ที่ตั้งค่าได้; ความถูกต้องของ codec ต่อเกมต้องพิสูจน์ใน Adapter','info','configured_codec_only')
