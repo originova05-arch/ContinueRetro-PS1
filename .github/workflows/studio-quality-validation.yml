@@ -1,4 +1,4 @@
-name: Studio quality core (isolated; no game validation)
+name: Studio quality and source recovery (no game validation)
 
 on:
   push:
@@ -21,9 +21,9 @@ concurrency:
 jobs:
   unit:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 7
     steps:
-      - name: Fetch exact commit from this public source-only repository
+      - name: Fetch exact source-only commit
         env:
           REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}.git
           COMMIT_SHA: ${{ github.sha }}
@@ -35,27 +35,53 @@ jobs:
           git -C work fetch --depth=1 origin "$COMMIT_SHA"
           git -C work checkout --detach FETCH_HEAD
           test "$(git -C work rev-parse HEAD)" = "$COMMIT_SHA"
-      - name: Reject private game and font assets in this change directory
+      - name: Reject private assets in tracked staging sources
         shell: bash
         run: |
           set -euo pipefail
           cd work
-          test -z "$(git ls-files studio_next | grep -Ei '\.(bin|cue|iso|rom|ttf|otf|woff2?|gguf|safetensors|har)$' || true)"
-      - name: Compile independent core
+          test -z "$(git ls-files studio_next | grep -Ei '\.(bin|cue|iso|rom|ttf|otf|bdf|pcf|fnt|fon|woff2?|gguf|safetensors|sqlite3?|db|har)$' || true)"
+      - name: Compile code and validate launcher syntax
         shell: bash
         run: |
           set -euo pipefail
           cd work
           python3 --version
-          python3 -m py_compile studio_next/quality.py studio_next/test_quality.py
-      - name: Run deterministic policy tests (not live model or London tests)
+          python3 -m compileall -q studio_next
+          bash -n studio_next/PREPARE_STUDIO_SOURCE.command
+      - name: Run existing policy tests and source-bridge fixture tests
         shell: bash
         run: |
           set -euo pipefail
           cd work
-          python3 -m unittest discover -s studio_next -p 'test_*.py' -v
-      - name: State validation boundary
+          python3 -m unittest discover -s studio_next -p 'test_*.py' -v 2>&1 | tee "$RUNNER_TEMP/studio-validation.txt"
+      - name: Package the tested helper only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd work
+          python3 studio_next/package_source_bridge.py --output-directory dist --validation-log "$RUNNER_TEMP/studio-validation.txt"
+          python3 - <<'PY'
+          from pathlib import Path
+          import tempfile, zipfile, subprocess, sys
+          with tempfile.TemporaryDirectory(prefix='verify-helper-') as directory:
+              with zipfile.ZipFile('dist/ContinueRetro_Source_Bridge_v1.zip') as archive:
+                  archive.extractall(directory)
+              package = Path(directory) / 'ContinueRetro_Source_Bridge_v1'
+              subprocess.run([sys.executable, '-m', 'unittest', 'test_source_bridge.py', '-v'], cwd=package, check=True)
+          print('PACKAGED_HELPER_FIXTURE_TESTS_PASS')
+          PY
+      - name: Upload helper ZIP and checksum (no app/private data)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ContinueRetro-source-bridge-${{ github.sha }}
+          path: |
+            work/dist/ContinueRetro_Source_Bridge_v1.zip
+            work/dist/ContinueRetro_Source_Bridge_v1.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
+      - name: Record validation boundary
         if: always()
         shell: bash
         run: |
-          printf '%s\n' 'This run does NOT validate London extraction/repacking, Ollama inference, Mac integration, UI, or model training.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'Tests cover isolated quality policies, review input, and authored source-transfer ZIP fixtures. They do NOT inspect the actual v0.6.0 app archive, install Studio, validate London, run Ollama, test the Mac Finder dialog, or train a model.' >> "$GITHUB_STEP_SUMMARY"
